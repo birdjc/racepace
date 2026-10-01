@@ -22,7 +22,7 @@
 - [x] Document requirements and I/O → `formulas/FORMULAS.md`
 - [x] Verify the extracted formulas against the originals → `verify_formulas.mjs` (all match)
 - [x] DECISION: language/stack → **A: client-side JS (Vite + vanilla JS)**
-- [ ] DECISION: deployment platform → *on hold*: Cloudflare Pages, GitHub Pages or Vercel (`base: './'` keeps all three working)
+- [x] DECISION: deployment platform → **GitHub Pages** (repo birdjc/racepace, public)
 - [x] DECISION: APIs → Open-Meteo (grid point at the course centroid; approved), AWS Terrain Tiles, OSM tiles, Nominatim. No keys.
 - [x] DECISION: wind runner mass → fixed at 68 kg
 
@@ -58,7 +58,8 @@
 
 ### Deployment
 - [x] Local run instructions (README)
-- [ ] Deploy config for the chosen platform (on hold; README lists the steps for all three)
+- [x] Deployed 2026-10-01: https://birdjc.github.io/racepace/ via `.github/workflows/deploy.yml` (tests → build with `VITE_CARTO_KEY` secret → Pages) on every push to main
+- [ ] Restrict the CARTO key to `birdjc.github.io` (+ localhost) in the CARTO dashboard
 
 ## Open questions / notes
 - The heat model is fit to whole marathons; applying it hourly is an approximation (see FORMULAS.md)

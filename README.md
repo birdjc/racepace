@@ -4,7 +4,9 @@ Upload a GPX course, a start date and time, and a goal finish time. The app retu
 pace plan adjusted for **grade**, **wind** and **heat/humidity**, using John J. Davis's
 Running Writings models.
 
-Everything runs in the browser. There is no server and no API keys.
+**Live: https://birdjc.github.io/racepace/**
+
+Everything runs in the browser; there is no server. The only key is an optional CARTO map key (see below).
 
 ## Run locally
 ```bash
@@ -36,7 +38,7 @@ build works on any static host:
 |---|---|
 | Cloudflare Pages | Connect the repo. Build command `npm run build`, output `dist`. Add `VITE_CARTO_KEY` under Settings → Variables and Secrets |
 | Vercel | Import the repo; the Vite preset is auto-detected. Add `VITE_CARTO_KEY` under Settings → Environment Variables. The Hobby tier is non-commercial only |
-| GitHub Pages | Publish `dist/` with a GitHub Action (e.g. `actions/deploy-pages`). Store the key as a repository secret and pass it to the build step: `env: VITE_CARTO_KEY: ${{ secrets.VITE_CARTO_KEY }}` |
+| GitHub Pages (**in use**) | `.github/workflows/deploy.yml` runs the tests, builds with the `VITE_CARTO_KEY` repository secret and deploys on every push to `main`. Settings → Pages → Source is "GitHub Actions" |
 
 ## How it works
 1. **Course.** The GPX is parsed (track, route or waypoints) and resampled every 10 m. Elevation comes from
