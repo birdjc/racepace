@@ -1,0 +1,1153 @@
+/* Self-hosted fonts (were a render-blocking Google Fonts @import). Files in fonts/ come from @fontsource. */
+@font-face {
+    font-family: 'Roboto';
+    font-style: normal;
+    font-weight: 400;
+    font-display: swap;
+    src: url('fonts/roboto-latin-400-normal.woff2') format('woff2');
+    unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+@font-face {
+    font-family: 'Roboto';
+    font-style: italic;
+    font-weight: 400;
+    font-display: swap;
+    src: url('fonts/roboto-latin-400-italic.woff2') format('woff2');
+    unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+@font-face {
+    font-family: 'Roboto';
+    font-style: normal;
+    font-weight: 700;
+    font-display: swap;
+    src: url('fonts/roboto-latin-700-normal.woff2') format('woff2');
+    unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+@font-face {
+    font-family: 'Roboto';
+    font-style: italic;
+    font-weight: 700;
+    font-display: swap;
+    src: url('fonts/roboto-latin-700-italic.woff2') format('woff2');
+    unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+@font-face {
+    font-family: 'Roboto';
+    font-style: normal;
+    font-weight: 400;
+    font-display: swap;
+    src: url('fonts/roboto-latin-ext-400-normal.woff2') format('woff2');
+    unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
+@font-face {
+    font-family: 'Roboto';
+    font-style: italic;
+    font-weight: 400;
+    font-display: swap;
+    src: url('fonts/roboto-latin-ext-400-italic.woff2') format('woff2');
+    unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
+@font-face {
+    font-family: 'Roboto';
+    font-style: normal;
+    font-weight: 700;
+    font-display: swap;
+    src: url('fonts/roboto-latin-ext-700-normal.woff2') format('woff2');
+    unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
+@font-face {
+    font-family: 'Roboto';
+    font-style: italic;
+    font-weight: 700;
+    font-display: swap;
+    src: url('fonts/roboto-latin-ext-700-italic.woff2') format('woff2');
+    unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
+@font-face {
+    font-family: 'PT Mono';
+    font-style: normal;
+    font-weight: 400;
+    font-display: swap;
+    src: url('fonts/pt-mono-latin-400-normal.woff2') format('woff2');
+    unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+@font-face {
+    font-family: 'PT Mono';
+    font-style: normal;
+    font-weight: 400;
+    font-display: swap;
+    src: url('fonts/pt-mono-latin-ext-400-normal.woff2') format('woff2');
+    unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
+
+/* Inline SVG icons (replaced the Material Icons / Material Symbols web fonts, so nothing
+   flashes as ligature text while a font loads). Elements keep the .material-icons class as a
+   styling hook; the box mirrors the old font metrics (a 1em square at 24px by default). */
+.material-icons,
+.material-symbols-outlined {
+    font-size: 24px;
+    line-height: 1;
+    display: inline-block;
+    vertical-align: middle;
+}
+
+.material-icons > svg,
+.material-symbols-outlined > svg {
+    width: 1em;
+    height: 1em;
+    fill: currentColor;
+    display: block;
+    margin: 0 auto;
+}
+
+.github-icon {
+    width: 1em;
+    height: 1em;
+    fill: currentColor;
+    vertical-align: middle;
+}
+
+
+
+/* TODO: looks good so far but need to iteratively add the other stuff */
+
+:root {
+    --primary-color: #007bff;
+    --dark-accent: #0056b3;
+    --hover-color: #bde2ff;
+    --active-color:#2196F3;
+    --link-hover-color:#84caff;
+    --soft-white: #f7f7f7;
+    --soft-black: #333;
+    --app-max-width: 800px;
+    --app-min-width: 25em;
+    --toggle-color: #e9ecef;
+    --slider-width: 54px;
+    --slider-height: 30px;
+    --alert-color:#92400e;
+    --gray-out: #6b7280;
+}
+
+* {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+}
+
+body, html {
+    font-family: 'Roboto', sans-serif;
+    min-width: 320px;
+    scroll-behavior: smooth;
+}
+
+body {
+    background-color: var(--soft-white);
+}
+
+/* Generic text settings */
+
+a {
+    color: var(--primary-color);
+    text-decoration: none;
+}
+
+h1 {
+    text-align: center;
+    font-size: 1.5em;
+}
+
+h2, h3, h4, h5, h6 {
+    color:var(--soft-black);
+    padding: 0.75em 0 0.25em 0;
+}
+
+
+p {
+    padding: 0.5em 0;
+}
+
+
+.separator-thick {
+    margin: 16px auto;
+    width: 60px;
+    height: 4px;
+    background-color: var(--primary-color);
+    border: none;
+    border-radius: 2px;
+}
+
+header {
+    width: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 10px;
+    background-color: #f3f3f3;
+    height: 4em;
+}
+
+header img.logo {
+    height: 50px; /* Adjust logo size */
+}
+
+header .home-link {
+    white-space: nowrap;
+    text-decoration: none;
+    font-size: 1.5em;
+    color: black;
+    margin: 0 10px; /* Gives some space around the site name */
+}
+
+.header-content{
+    max-width: var(--app-max-width); /* Sets the maximum width of the header content */
+    width: 100%; /* Ensures the content fills the container until it reaches max-width */
+    display: flex; /* Enables flexbox layout */
+    justify-content: space-between; /* Distributes space between items */
+    align-items: center; /* Aligns items vertically */
+    padding: 5px; /* Adds some spacing inside the header content */
+}
+
+/* Header/footer formatting */
+.header-content a, footer a{
+    color: var(--soft-white);
+}
+
+nav a {
+    text-decoration: none;
+    white-space: nowrap;
+    margin: 0 10px;
+}
+
+header, footer {
+    background-color: var(--soft-black); /* a dark background for contrast */
+    color: var(--soft-white); /* white text for visibility against the dark background */
+}
+
+footer {
+    text-align: center;
+    padding: 10px;
+    position: relative;
+    bottom: 0;
+    width: 100%;
+}
+
+/* Main content */
+main {
+    max-width: var(--app-max-width);
+    background-color: white;
+    margin: 0 auto;
+    padding: 0.5em 1em;
+    box-shadow: 0 0 10px rgba(0, 0, 0, 0.1); /* subtle shadow for depth */
+}
+
+
+/* So as-is the padding is set by the <main> left/right padding */
+/* And I think that's what we wnat */
+.app-box  {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+}
+
+
+.arrow-container{
+    width: 100%;
+    min-height: 5em;
+    max-width: 540px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+
+.arrow-box {
+    display:flex;
+}
+
+
+/* Pace input dials */
+
+.digitbox {
+    font-size: 2em;
+    background-color: white;
+    display:flex;
+    flex-direction: column;
+    align-items: center;
+}
+
+.pace-box {
+    display:flex;
+    flex-direction:row;
+    justify-content: center;
+    width:100%;
+}
+
+.left-dummy {
+    flex:1;
+}
+
+.clock {
+    flex:1;
+    display: flex;
+    flex-direction: row;
+    justify-content: center;
+    align-items: center;
+}
+
+.unit-stack {
+    flex: 1;
+    display:flex;
+    flex-direction: column;
+    justify-content: center;
+}
+
+.unit-stack-horiz {
+    flex: 1;
+    display:flex;
+    flex-direction: row;
+    justify-content: center;
+    gap: 0.3em;
+}
+
+.pace-toggle {
+    width: 5.5ch;
+    flex: 0;
+}
+
+.output-toggle {
+    width: 5.5ch
+}
+
+
+.svg-arrow {
+    font-size: 1.5em;
+    outline: none; /* remove focus outline (consider accessibility) */
+    cursor: pointer;
+    border: solid var(--dark-accent) 2px;
+    border-radius: 10px;
+    padding: 0 0px;
+    margin: 4px;
+    box-shadow: 0px 4px 6px rgba(0, 0, 0, 0.1); /* horizontal offset, vertical offset, blur radius, color */
+}
+
+
+.unit-text {
+    height:3em;
+    display:flex;
+    flex-direction: column;
+    justify-content: end;
+    padding: 0 0.75em 0 0;
+    font-family:'PT Mono', monospace;
+    font-weight:bold;
+}
+
+
+.unit-stack li {
+    border-radius:5px;
+}
+
+.unit-toggle, .hill-toggle{
+    background-color: var(--toggle-color);
+    border: none;
+    border-radius:5px;
+    font-size:1.1em;
+    padding: 0.25em 0.5em;
+    margin: 0.2em 0em;
+    cursor:pointer;
+    min-width: 3ch;
+}
+
+
+/* Spacer and within spacer text styling */
+
+.spacer {
+    font-size: 1.5em;
+    width:100%;
+    display:flex;
+    justify-content: center;
+    padding: 0.5em;
+}
+
+#pace-or-effort, .rise-unit{
+    font-weight:bold;
+}
+
+
+.toggle-box {
+    max-width: 600px;
+    align-items: center;
+    justify-content: space-between;
+    flex: 1;
+}
+
+.incline-unit-box {
+    padding: 0.5em 0;
+
+}
+
+/* Incline box */
+.incline-box {
+    width: 100%;
+
+}
+
+/*  >> and > button styling */
+.pct-button {
+    font-size: 1.5em;
+    outline: none; /* remove focus outline (consider accessibility) */
+    cursor: pointer;
+    border: solid var(--primary-color) 2px;
+    background-color: white;
+    border-radius: 50%;
+    margin: 5px;
+    box-shadow: 0px 4px 6px rgba(0, 0, 0, 0.1); 
+    height: 2em;
+    width: 2em;
+    display: flex;
+    align-items:center;
+    justify-content: center;
+}
+
+.incline-pct.digit {
+    font-weight: normal;
+}
+
+.digit {
+    font-family:'PT Mono', monospace;
+    font-weight:bold;
+    font-size: 2em;
+}
+
+
+.incline-text {
+    font-family: 'Roboto', sans-serif;
+    display:flex;
+    align-items: center;
+}
+
+
+.incline-label {
+    font-size: 1.5em;
+    font-family: 'Roboto', sans-serif;
+    font-weight: normal;
+    
+}
+
+/* Uphill / downhill indicator */
+
+.up-down-row {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap:1em;
+    padding: 0.4em 0em;
+    font-size:1.5em;
+}
+
+#uphill-or-downhill {
+    font-weight: bold;
+}
+
+.hill-button{
+    font-size:2em;
+    border:none;
+    transition: transform 0.3s; /* This will make the rotation smooth */
+    transform-origin: center;
+}
+
+
+.hill-outer, .incline-box {
+    min-height: 5em;
+}
+
+.hill-outer {
+    display:flex;
+    justify-content: center;
+}
+
+.input-row {
+    display:flex;
+    justify-content: center;
+}
+
+
+#rise {
+    width: 7ch;
+}
+
+
+
+.rise-run-row {
+    padding: 0.25em 0;
+    display:flex;
+    justify-content: space-between;
+}
+
+
+.vert-row {
+    padding: 0.25em 0;
+    display:flex;
+    justify-content: center;
+}
+
+.slug {
+    display:flex;
+    flex-direction: row;
+}
+
+
+.rise-unit, .rise-text {
+    font-size: 1.25em;
+    flex:0;
+    white-space: nowrap;
+}
+
+
+.hill-input {
+    font-size: 1.25em;
+    width: 3em;
+    margin: 0 0.3em;
+}
+
+.vert-input {
+    width: 4em;
+}
+
+/* Grade unit selector */
+
+.unit-row {
+    white-space: nowrap;
+    width:100%;
+    display:flex;
+    justify-content: center;
+    gap: 0.2em;
+}
+
+
+/* Results */
+
+.pace-result, .convert-result {
+    font-family:'PT Mono', monospace;
+    font-weight:bold;
+    font-size: 4.5em;
+}
+
+.convert-units {
+    font-family:'PT Mono', monospace;
+    font-weight: bold;
+}
+
+
+/* Material icons */
+
+
+.material-symbols-outlined {
+    font-variation-settings:
+    'FILL' 0,
+    'wght' 400,
+    'GRAD' 0,
+    'opsz' 24;
+    color:var(--primary-color);
+    background: transparent;
+}
+
+.material-icons{
+    color: var(--primary-color);
+    background-color: white;
+    font-weight: bold;
+}
+
+
+/* Toggle switch */
+
+
+/* Toggle slider */
+/* The switch - the box around the slider */
+.switch {
+    position: relative;
+    display: inline-block;
+    width: var(--slider-width, 60px); /* Default width */
+    height: var(--slider-height, 34px); /* Default height */
+}
+
+/* Hide default HTML checkbox */
+.switch input {
+    opacity: 0;
+    width: 0;
+    height: 0;
+}
+
+/* The slider */
+.slider {
+    position: absolute;
+    cursor: pointer;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background-color: #ccc;
+    transition: background-color .3s;
+    border-radius: calc(var(--slider-height, 34px) / 2); /* Make the slider rounded based on height */
+}
+
+.slider:before {
+    position: absolute;
+    content: "";
+    height: calc(var(--slider-height, 34px) - 8px); /* Adjust based on slider height */
+    width: calc(var(--slider-height, 34px) - 8px); /* Make the circle's size responsive to the slider's height */
+    left: 4px;
+    bottom: 4px;
+    background-color: white;
+    transition: transform .4s;
+    border-radius: 50%; /* Always fully rounded */
+}
+
+input:checked + .slider {
+    background-color: #2196F3;
+}
+
+input:focus + .slider {
+    box-shadow: 0 0 1px #2196F3;
+}
+
+input:checked + .slider:before {
+    transform: translateX(calc(var(--slider-width, 60px) - var(--slider-height, 34px))); /* Move circle to the right */
+}
+
+
+
+/* Affecting things that are active */
+
+/* Coloring buttons when active */
+.unit-toggle:active{
+    background-color: var(--active-color);
+}
+
+.svg-arrow:active, .pct-button:active {
+    /* Must be AFTER hover def! */
+    background-color: var(--link-hover-color);
+    /* color: white; */
+}
+
+/* IF the to/from unit buttons are active */
+.active {
+    background-color: var(--active-color);
+    color:white;
+}
+
+.i-note:active {
+    color:white;
+    border: solid var(--link-hover-color) 2px;
+}
+
+/* up to top arrow */
+.material-icons.up  {
+    padding: 0 0 0 0.5em;
+    font-size: 1.4rem;
+    color: gray;
+    text-decoration: none;;
+}
+
+
+
+.mirrored {
+    transform: scaleX(-1);
+}
+
+.i-note {
+    outline: none;
+    cursor: pointer;
+    border: solid var(--primary-color) 2px;
+    background-color: white;
+    font-size: 1.25rem;
+    width:1.25em;
+    height:1.25em;
+    display:flex;
+    flex: 0 0 auto;
+    border-radius: 50%;
+    color: #2196F3;
+    align-items: center;
+    justify-content: center; 
+    text-decoration: none;
+}
+
+/* Alerts and warnings and info boxes */
+
+
+/* Alert box */
+.alert-box, .info-box{
+    width: 100%;
+    display: flex;
+    padding: 0.4em 0;
+    justify-content: center;
+}
+
+.alert-inner {
+    width: 90%;
+    display:flex;
+    align-items: center;
+    background-color: #fef08a;
+    border-radius: 10px;
+    padding: 0.4em;
+    box-shadow: 0px 4px 6px rgba(0, 0, 0, 0.05); 
+}
+
+.info-inner, .impossible-inner {
+    width: 90%;
+    display:flex;
+    align-items: center;
+    justify-content: space-between;
+    background-color: #a5f3fc;
+    border-radius: 10px;
+    padding: 0.4em;
+    box-shadow: 0px 4px 6px rgba(0, 0, 0, 0.05); 
+}
+
+.impossible-inner {
+    background-color: #fef08a;
+}
+
+.bulb-icon {
+    text-decoration: none;
+    background-color: white;;
+    cursor: pointer;
+    flex: 0 0 auto;
+    font-weight: bold;
+    font-size: 1.25em;
+    border-radius: 50%;
+    display: flex;
+    height: 1.25em;
+    width: 1.25em;
+    border: solid var(--alert-color) 2px;
+    padding: 0.5em;
+    align-items: center;
+    justify-content: center;
+}
+
+.bulb-icon a{
+    text-decoration: none;
+    color: var(--alert-color);
+}
+
+
+.alert-text {
+    text-align: center;
+    color: #92400e;
+    padding: 0 1em;
+}
+
+.info-text {
+    text-align: center;
+}
+
+
+.explainer-text {
+    line-height: 1.5;
+    padding: 0 0.5em;
+    font-size: 1.3em;;
+}
+
+.explainer-text ol {
+    padding: 0 3em;
+
+}
+.explainer-text li{
+    list-style: decimal;
+
+}
+
+
+.newsletter-block {
+    display: flex;
+    justify-content: center;
+}
+
+/* Table */
+
+table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 20px 0;
+    font-family: Arial, sans-serif;
+  }
+  
+  th, td {
+    text-align: left;
+    padding: 8px;
+    border-bottom: 1px solid #EEE;
+  }
+  
+  th {
+    background-color: #F9F9F9;
+    color: #333;
+  }
+
+  
+
+.famous-hills tbody tr td:last-child {
+  white-space: nowrap;
+  font-weight: bold; /* Keeping the bold styling as per your previous request */
+}
+
+.bq-text {
+    margin: 0em 1em;
+    padding: 1em;
+    background-color: #eaf6ff;
+    border-left: 5px solid var(--hover-color); /* Adds a solid line on the left */
+    font-style: italic; /* Optionally, italicize the text to further mimic a blockquote */
+    border-radius: 5px 10px 10px 5px;
+}
+
+.explainer-image {
+    width:100%;
+    height:auto;
+}
+
+
+/* Hellobar for MEE */
+
+
+.rw-link {
+    color:#2563eb;
+    text-align: center;
+    font-weight: bold;;
+}
+
+.mee-banner{
+    width: 100%;
+    min-height: 72px;
+    padding: 8px 16px;
+    color: #fff;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;  /* Changed from center */
+    font-weight: 600;
+    border-radius: 0;
+}
+
+/* Remove the generic .mee-banner div rule and replace with specific classes */
+
+.banner-left {
+    flex: 0 0 auto;  /* Don't grow, don't shrink, fit content */
+    display: flex;
+    align-items: center;
+    justify-content: flex-start;  /* Stick to left */
+}
+
+.banner-middle {
+    flex: 1;  /* Grow to fill available space */
+    display: flex;
+    align-items: center;
+    justify-content: center;  /* Center the text */
+    padding: 0 40px 0 40px;  /* Add some breathing room */
+}
+
+.banner-right {
+    flex: 0 0 auto;  /* Don't grow, don't shrink, fit content */
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;  /* Stick to right */
+}
+
+#mee-banner-close{
+    background: none;
+    padding: 0 5px;
+    color: white;
+    font-size: 1.5rem;
+    border: none;
+    border-radius: 0%;
+    cursor: pointer;
+}
+
+#mee-banner-close:hover{
+    color:black;
+}
+
+
+.hello-bar--aqua-drift {
+    background:
+    linear-gradient(135deg,
+    #66f1ff 0%,
+    #19c4f2 28%,
+    #0a86d8 62%,
+    #0a5cc5 100%);
+}
+
+.cta-button {
+    background: linear-gradient(135deg, #00A8E8, #00C896);
+    color:  #FFFFFF;
+    padding: 0.8rem 1.1rem;
+    border: none;
+    border-radius: 50px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    text-decoration: none;
+    display: inline-block;
+    box-shadow: 0 4px 15px rgba(0, 168, 232, 0.3);
+    white-space: nowrap;  /* Changed from text-wrap */
+}
+
+.cta-button:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 20px rgba(0, 168, 232, 0.4);
+}
+
+
+.hello-link{
+    text-decoration: none;
+    font-style:italic;
+    color:white;
+}
+
+.hello-link:hover{
+    color:#f472b6;
+}
+
+.hidden {
+    display: none;
+}
+
+/* Mobile swap */
+.banner-text-full {
+    display: inline;
+}
+
+.banner-text-short {
+    display: none;
+}
+
+/* On mobile, swap them */
+@media (max-width: 768px) {
+    .banner-text-full {
+        display: none;
+    }
+    
+    .banner-text-short {
+        display: inline;
+    }
+    
+    .banner-middle {
+        padding: 0 15px;  /* Tighter padding on mobile */
+    }
+    
+    .mee-banner {
+        padding: 8px 8px;  /* Tighter overall padding */
+    }
+}
+
+
+/* Hover only on mice */
+@media (hover: hover) {
+    .svg-arrow:hover, .pct-button:hover, .unit-toggle:hover, .hill-toggle:hover {
+        background-color: var(--hover-color);
+        box-shadow: 0px 6px 8px rgba(0, 0, 0, 0.12);
+    }
+    
+    .hill-button:hover {
+        cursor:pointer;
+        color: var(--dark-accent);
+    }
+    
+    
+    .i-note:hover{
+        background-color: var(--hover-color);
+        cursor:pointer;
+    }
+    
+    .flip-button:hover {
+        color: var(--dark-accent);
+        cursor: pointer;
+    }
+    .unit-toggle:hover, .hill-toggle:hover {
+        color:black;
+    }
+    
+    .logo-link a:hover{
+        color:var(--link-hover-color);
+    }
+    
+    .menu a:hover {
+        color:var(--link-hover-color);
+    }
+    
+    .material-icons.up:hover  {
+        color:var(--primary-color);
+    }
+    
+    .bulb-icon:hover{
+        background-color: #fefce8;
+    }
+    
+    
+    tbody tr:hover {
+        background-color: #f2f2f2;
+    }
+}
+
+
+
+/* Responsive stuff, tweak as needed */
+
+@media (max-width: 500px) {
+
+    h1 {
+        font-size: 1.33em;
+    }
+
+    main {
+        padding: 0.25em 0.25em; 
+    }
+
+}
+
+
+
+@media (max-width: 400px) {
+
+    h1 {
+        font-size: 1.1em;
+    }
+
+    .header-content, .header-content a, nav a {
+        font-size: 1em; /* Reduce font size */
+    }
+
+    .header-content {
+        padding: 5px; /* Reduce padding for more space */
+    }
+
+    .svg-arrow {
+        font-size: 1.25em;
+    }
+
+    .digit {
+        font-size: 1.4em;
+    }
+    .pct-button {
+        font-size: 1.25em;
+        margin: 2px;
+    }
+
+    .pace-result {
+        font-size: 3em;
+    }
+
+    .spacer {
+        font-size: 1.25em;
+    }
+
+    .unit-toggle, .hill-toggle{
+        font-size: 0.9em;
+        padding: 0.25em 0.25em;
+        margin: 0.2em 0em;
+    }
+
+
+
+
+    .hill-unit, .hill-text, .unit-text {
+        font-size: 0.8em;
+    }
+
+
+}
+
+
+/* At the bottom I guess */
+
+.hidden {
+    display: none;
+}
+
+/* Marathon Excellence book CTA module (shared across RW apps) */
+.book-cta-module {
+    position: relative;
+    margin: 1.5em 0;
+}
+
+.book-cta-module img {
+    display: block;
+    width: 100%;
+    height: auto;
+    border-radius: 12px;
+}
+
+.book-cta-module .cta-box {
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 4%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+/* Scale with the viewport so the button stays inside the empty
+   strip along the bottom of the banner image at any screen width */
+.book-cta-module .cta-button {
+    padding: clamp(0.55rem, 1.8vw, 1rem) clamp(1rem, 3.5vw, 2rem);
+    font-size: clamp(0.7rem, 2.4vw, 1rem);
+}
+
+/* Restore defaults (same as the other RW apps) */
+.reset-box {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 1em;
+    padding-top: 1em;
+}
+
+.reset-text {
+    font-size: 1.1em;
+    color: var(--gray-out);
+}
+
+.reset-box button {
+    color: var(--gray-out);
+}
+
+.flip-button {
+    border: none;
+    font-size: 2em;
+    background: none;
+    transition: transform 0.4s;
+    transform-origin: center;
+}
+
+.material-icons.inline-icon {
+    font-size: 1em;
+}
+
+/* Remember-settings toggle (shared look across RW apps) */
+.remember-box {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 1em;
+    padding-top: 0.75em;
+    padding-bottom: 0.25em;
+}
+
+.remember-text {
+    font-size: 1.1em;
+    color: var(--gray-out);
+}
+
+.remember-box .switch {
+    width: 44px;
+    height: 24px;
+}
+
+.remember-box .slider:before {
+    height: 18px;
+    width: 18px;
+    left: 3px;
+    bottom: 3px;
+}
+
+/* 44px track - 18px knob - 3px inset each side = 20px of travel (the app-wide rule assumes the 54px track) */
+.remember-box input:checked + .slider:before {
+    transform: translateX(20px);
+}

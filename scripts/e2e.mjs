@@ -1,0 +1,30 @@
+// End-to-end check in Node: GPX -> profile -> windows -> weather -> adjustments -> splits
+import fs from 'fs';
+import { nodeTileLoader } from './node-tile-loader.mjs';
+import { buildCourse } from '../src/lib/course.js';
+import { smoothElevation } from '../src/lib/profile.js';
+import { buildWindows, hillSegments } from '../src/lib/segments.js';
+import { getRaceWeather } from '../src/lib/weather.js';
+import { attachWeather, computeAll, pacingOpportunity } from '../src/lib/adjust.js';
+import { makeSplits, splitBoundaries, splitPace } from '../src/lib/splits.js';
+import { formatDuration, formatDelta } from '../src/lib/pace.js';
+
+const file = process.argv[2] ?? 'test/fixtures/boston-like-no-ele.gpx';
+const startLocal = process.argv[3] ?? '2026-10-01T08:00';
+const goal = 3 * 3600 + 15 * 60;
+const course = await buildCourse(fs.readFileSync(file, 'utf8'), { loadTile: nodeTileLoader });
+const prof = smoothElevation(course);
+let windows = buildWindows(course.points, prof.ele);
+const hills = hillSegments(windows);
+const v0 = course.distance / goal;
+const wx = await getRaceWeather({ lat: course.centroid.lat, lon: course.centroid.lon, startLocal, durationSec: goal });
+windows = attachWeather(windows, v0, wx.hours, startLocal);
+let t = performance.now();
+const res = computeAll(windows, v0, { grade: true, wind: true, heat: true });
+console.log(`compute ${(performance.now() - t).toFixed(0)} ms | windows ${windows.length} | hills ${hills.length} | SG window ${prof.windowM} m, noise ${prof.noiseRms.toFixed(2)} m, spikes fixed ${prof.spikesReplaced}`);
+for (const k of ['grade', 'wind', 'heat', 'total']) console.log(`${k.padEnd(6)} ${formatDelta(res.impact[k])}`);
+console.log('opportunity', pacingOpportunity(res.impact.total, goal), 'warnings', res.warnings);
+const rows = makeSplits(windows, res.runs.total, res.runs.base, splitBoundaries('mi', windows, hills));
+rows.slice(0, 5).concat(rows.slice(-2)).forEach((r, i) => console.log(`mi split ${formatDuration(r.time)} pace ${formatDuration(splitPace(r, 'mi'))}/mi ${formatDelta(r.delta)} cum ${formatDuration(r.cum)}`));
+console.log('sum of split times = total?', Math.abs(rows.reduce((s, r) => s + r.time, 0) - res.runs.total.total) < 1e-6);
+hills.forEach(h => console.log(`hill ${h.label.padEnd(14)} ${(h.length / 1000).toFixed(2)} km ${(h.grade * 100).toFixed(1)}%`));
