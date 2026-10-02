@@ -25,7 +25,12 @@ export class ProfileChart {
   }
 
   // data: { windows, deltas (s per unit), eleScale, eleUnit, unitM, unitLabel, bands: [{d0,d1}] | null }
-  set(data) { this.data = data; this.render(); }
+  set(data) {
+    this.data = data;
+    // Measure directly too, so the first render doesn't depend on a ResizeObserver callback
+    if (!this.width) this.width = Math.round(this.el.clientWidth) || 0;
+    this.render();
+  }
 
   layout() {
     const W = this.width || this.el.clientWidth || 600;

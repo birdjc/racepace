@@ -59,7 +59,10 @@
 ### Deployment
 - [x] Local run instructions (README)
 - [x] Deployed 2026-10-01: https://birdjc.github.io/racepace/ via `.github/workflows/deploy.yml` (tests → build with `VITE_CARTO_KEY` secret → Pages) on every push to main
-- [ ] Restrict the CARTO key to `birdjc.github.io` (+ localhost) in the CARTO dashboard
+- [ ] Restrict the CARTO key to `birdjc.github.io` in the CARTO dashboard
+- Dev key: separate localhost CARTO key in `.env.development.local` (gitignored, used by `npm run dev`); production key only in the GitHub secret
+- [x] Mobile fixes (2026-10-02): touch devices (`pointer: coarse`) get no file-type filter (iOS greys out .gpx; contents still checked) and three h/min/sec goal boxes; desktop keeps the .gpx filter and one h:mm:ss box. Date/time inputs fit narrow screens (iOS min-width). Touch map pans only after a tap (no scroll trap); tapping elsewhere closes tooltips. Charts render without waiting for ResizeObserver
+- [ ] User to re-test on iPhone (iOS Safari 26.6.1)
 
 ## Open questions / notes
 - The heat model is fit to whole marathons; applying it hourly is an approximation (see FORMULAS.md)

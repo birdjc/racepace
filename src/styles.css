@@ -117,7 +117,17 @@ main { max-width: 1180px; margin: 0 auto; padding: 20px 16px 64px; }
 .field input[aria-invalid="true"] { border-color: var(--error); }
 .field-hint { font-size: 0.82rem; color: var(--muted); margin: 0; }
 .field-hint.ok { color: var(--ink-2); }
-.row-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.row-2 { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 12px; }
+/* iOS Safari gives date/time inputs an intrinsic minimum width that overflows narrow columns */
+.field { min-width: 0; }
+.field input[type="date"], .field input[type="time"] { min-width: 0; max-width: 100%; -webkit-appearance: none; appearance: none; min-height: 44px; text-align: left; }
+.field input::-webkit-date-and-time-value { text-align: left; }
+/* Goal time on touch devices: three number boxes */
+.goal-split { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+.goal-part { display: flex; align-items: center; gap: 6px; min-width: 0; }
+.goal-part input { width: 100%; min-width: 0; text-align: center; padding: 10px 6px; border-radius: var(--radius-sm); border: 1px solid var(--border-strong); background: var(--surface); font-size: 1.05rem; }
+.goal-part input[aria-invalid="true"] { border-color: var(--error); }
+.goal-part span { font-size: 0.85rem; color: var(--muted); flex: none; }
 .dropzone { position: relative; display: flex; align-items: center; justify-content: center; min-height: 170px; padding: 18px; border-radius: var(--radius); border: 1.5px dashed var(--border-strong); background: var(--surface-2); cursor: pointer; text-align: center; transition: border-color .15s, background .15s; }
 .dropzone:hover, .dropzone.drag { border-color: var(--accent); }
 .dropzone.drag { background: color-mix(in srgb, var(--accent) 8%, var(--surface-2)); }
@@ -181,6 +191,8 @@ main { max-width: 1180px; margin: 0 auto; padding: 20px 16px 64px; }
 .course-card { padding-bottom: 14px; }
 .map-wrap { position: relative; isolation: isolate; border-radius: 12px; overflow: hidden; border: 1px solid var(--border); }
 .map { height: clamp(360px, 58vh, 560px); background: var(--surface-2); transition: height .25s ease; }
+.map-hint { display: none; position: absolute; top: 10px; left: 50%; transform: translateX(-50%); z-index: 500; pointer-events: none; font-size: 0.78rem; font-weight: 600; padding: 5px 10px; border-radius: 999px; background: color-mix(in srgb, var(--surface) 90%, transparent); border: 1px solid var(--border); color: var(--ink-2); white-space: nowrap; }
+.map-wrap:has(.map.map-locked) .map-hint { display: block; }
 .map-wrap.tall .map { height: clamp(480px, 82vh, 900px); }
 .map-tools { position: absolute; top: 10px; right: 10px; z-index: 500; display: flex; flex-direction: column; gap: 6px; }
 .map-btn { width: 34px; height: 34px; display: grid; place-items: center; border-radius: 8px; border: 1px solid var(--border-strong); background: var(--surface); cursor: pointer; box-shadow: var(--shadow); }
@@ -276,7 +288,7 @@ table.splits .kind { display: block; font-size: 0.75rem; color: var(--muted); }
   .factor { flex-direction: row; flex-wrap: wrap; align-items: baseline; column-gap: 10px; }
   .factor-top { width: 100%; }
   .factor-val { font-size: 1.3rem; }
-  .row-2 { grid-template-columns: 1fr; }
+  .row-2 { grid-template-columns: minmax(0, 1fr); }
   .brand span { display: none; }
   .card-head .seg { width: 100%; justify-content: space-between; }
   .card-head .seg button { flex: 1; padding: 6px 8px; }

@@ -81,11 +81,17 @@
 
         <fieldset class="step">
           <legend><span class="step-n">3</span>Goal</legend>
-          <label class="field">
-            <span class="label">Expected finish time</span>
-            <input id="goal-time" type="text" inputmode="numeric" placeholder="3:15:00" autocomplete="off" aria-describedby="goal-hint" />
-            <span id="goal-hint" class="field-hint">h:mm:ss, the time you'd run on a flat course in ideal weather.</span>
-          </label>
+          <div class="field">
+            <label class="label" for="goal-time" id="goal-label">Expected finish time</label>
+            <!-- Desktop: one h:mm:ss box. Touch devices: three number boxes (phone number pads have no colon). -->
+            <input id="goal-time" type="text" placeholder="3:15:00" autocomplete="off" aria-describedby="goal-hint" />
+            <div class="goal-split" id="goal-split" role="group" aria-labelledby="goal-label" aria-describedby="goal-hint" hidden>
+              <label class="goal-part"><input id="goal-h" type="text" inputmode="numeric" pattern="[0-9]*" maxlength="2" placeholder="3" autocomplete="off" aria-label="Hours" /><span>h</span></label>
+              <label class="goal-part"><input id="goal-m" type="text" inputmode="numeric" pattern="[0-9]*" maxlength="2" placeholder="15" autocomplete="off" aria-label="Minutes" /><span>min</span></label>
+              <label class="goal-part"><input id="goal-s" type="text" inputmode="numeric" pattern="[0-9]*" maxlength="2" placeholder="00" autocomplete="off" aria-label="Seconds" /><span>sec</span></label>
+            </div>
+            <span id="goal-hint" class="field-hint">The time you'd run on a flat course in ideal weather.</span>
+          </div>
         </fieldset>
 
         <p id="form-error" class="form-error" role="alert" hidden></p>
@@ -166,6 +172,7 @@
         </div>
         <div class="map-wrap">
           <div id="map" class="map" aria-label="Course map coloured by pace change"></div>
+          <div class="map-hint" aria-hidden="true">Tap the map to pan · pinch to zoom</div>
           <div class="map-tools">
             <button type="button" class="map-btn" id="map-fit" title="Fit route" aria-label="Fit route to view"><svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
             <button type="button" class="map-btn" id="map-expand" title="Taller map" aria-label="Make the map taller" aria-pressed="false"><svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path d="M12 3v18m0-18-4 4m4-4 4 4m-4 14-4-4m4 4 4-4" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></button>

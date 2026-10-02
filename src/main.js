@@ -123,7 +123,9 @@ function updateInputHints() {
     hint.textContent = `Average ${formatPaceSec(goal / p.distance * unitM(units), units)} on flat ground in ideal weather.`;
     hint.classList.add('ok');
   } else {
-    hint.textContent = 'h:mm:ss, the time you\'d run on a flat course in ideal weather.';
+    hint.textContent = isTouch()
+      ? 'The time you\'d run on a flat course in ideal weather.'
+      : 'h:mm:ss, the time you\'d run on a flat course in ideal weather.';
     hint.classList.remove('ok');
   }
 }
@@ -133,13 +135,73 @@ $('goal-time').addEventListener('blur', () => {
   if (v && !(parseDuration(v) > 0)) $('goal-time').setAttribute('aria-invalid', 'true');
 });
 
+// ---------- touch devices (phones/tablets) vs mouse devices ----------
+// Touch: no file-type filter (iOS greys out .gpx files; contents are checked after choosing instead)
+// and three number boxes for the goal time (phone number pads have no colon).
+// Mouse: .gpx filter on the file picker and one h:mm:ss box.
+const touchQuery = window.matchMedia('(pointer: coarse)');
+const isTouch = () => touchQuery.matches;
+const GOAL_PARTS = ['goal-h', 'goal-m', 'goal-s'];
+
+function applyDeviceMode() {
+  const touch = isTouch();
+  if (touch) $('gpx-file').removeAttribute('accept');
+  else $('gpx-file').setAttribute('accept', '.gpx,application/gpx+xml');
+  $('goal-time').hidden = touch;
+  $('goal-split').hidden = !touch;
+  $('goal-label').htmlFor = touch ? 'goal-h' : 'goal-time';
+  if (touch) setGoalParts($('goal-time').value);
+  updateInputHints();
+}
+
+// Split boxes → the canonical h:mm:ss value in #goal-time
+function syncGoalFromParts() {
+  const [h, m, sec] = GOAL_PARTS.map(id => $(id).value.trim());
+  $('goal-time').value = (h || m || sec)
+    ? `${Number(h || 0)}:${String(Number(m || 0)).padStart(2, '0')}:${String(Number(sec || 0)).padStart(2, '0')}`
+    : '';
+}
+function setGoalParts(value) {
+  const sec = parseDuration(value);
+  if (!(sec > 0)) { GOAL_PARTS.forEach(id => { $(id).value = ''; }); return; }
+  $('goal-h').value = String(Math.floor(sec / 3600));
+  $('goal-m').value = String(Math.floor((sec % 3600) / 60)).padStart(2, '0');
+  $('goal-s').value = String(Math.round(sec % 60)).padStart(2, '0');
+}
+// Minutes and seconds must be 0–59; returns false (and marks the box) if not
+function goalPartsValid() {
+  let ok = true;
+  for (const id of ['goal-m', 'goal-s']) {
+    const v = $(id).value.trim();
+    const bad = v !== '' && Number(v) > 59;
+    if (bad) $(id).setAttribute('aria-invalid', 'true'); else $(id).removeAttribute('aria-invalid');
+    if (bad) ok = false;
+  }
+  return ok;
+}
+GOAL_PARTS.forEach((id, i) => {
+  const el = $(id);
+  el.addEventListener('input', () => {
+    el.value = el.value.replace(/\D/g, '').slice(0, 2);   // digits only
+    el.removeAttribute('aria-invalid');
+    syncGoalFromParts();
+    $('goal-time').removeAttribute('aria-invalid');
+    updateInputHints();
+    // Move on once a box is full
+    if (el.value.length === 2 && i < GOAL_PARTS.length - 1) $(GOAL_PARTS[i + 1]).focus();
+  });
+  el.addEventListener('blur', goalPartsValid);
+  el.addEventListener('focus', () => el.select());
+});
+touchQuery.addEventListener('change', applyDeviceMode);
+
 // Restore last-used inputs (convenience only)
 (function restoreInputs() {
   const last = load('inputs', {}) || {};
   if (last.date) $('race-date').value = last.date;
   if (last.time) $('start-time').value = last.time;
   if (last.goal) $('goal-time').value = last.goal;
-  updateInputHints();
+  applyDeviceMode();
 })();
 
 function showFormError(msg) { const el = $('form-error'); el.textContent = msg; el.hidden = false; }
@@ -163,7 +225,13 @@ $('input-form').addEventListener('submit', async e => {
   if (!input.gpxText) problems.push('add a GPX course');
   if (!date) problems.push('choose a race date');
   if (!time) problems.push('choose a start time');
-  if (!(goalSec > 0)) { problems.push('enter an expected finish time like 3:15:00'); $('goal-time').setAttribute('aria-invalid', 'true'); }
+  const partsOk = !isTouch() || goalPartsValid();
+  if (!partsOk) problems.push('keep minutes and seconds between 0 and 59');
+  else if (!(goalSec > 0)) {
+    problems.push(isTouch() ? 'enter an expected finish time (hours, minutes, seconds)' : 'enter an expected finish time like 3:15:00');
+    $('goal-time').setAttribute('aria-invalid', 'true');
+    if (isTouch()) GOAL_PARTS.forEach(id => $(id).setAttribute('aria-invalid', 'true'));
+  }
   if (problems.length) { showFormError(`Please ${problems.join(', ')}.`); return; }
   save('inputs', { date, time, goal: $('goal-time').value });
 
@@ -298,6 +366,13 @@ $('map-expand').addEventListener('click', () => {
 });
 $('csv-btn').addEventListener('click', exportCsv);
 window.addEventListener('scroll', hideTooltip, { passive: true });
+// Touch: tapping anywhere outside the interactive views closes the tooltip and re-locks the map
+document.addEventListener('pointerdown', e => {
+  if (e.pointerType !== 'touch' || !S || !map) return;
+  if (e.target.closest('#map')) return;
+  if (!e.target.closest('#profile, #split-chart, #split-table')) clearFocus();
+  map.lock();
+}, { passive: true });
 
 // ---------------------------------------------------------------- rendering
 function renderResults() {

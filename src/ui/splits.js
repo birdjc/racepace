@@ -17,7 +17,12 @@ export class SplitChart {
   }
 
   // data: { values: seconds per split (time change), labels: x labels, active: index|null }
-  set(data) { this.data = data; this.render(); }
+  set(data) {
+    this.data = data;
+    // Measure directly too, so the first render doesn't depend on a ResizeObserver callback
+    if (!this.width) this.width = Math.round(this.el.clientWidth) || 0;
+    this.render();
+  }
 
   indexAt(e) {
     const t = e.target.closest?.('[data-i]');

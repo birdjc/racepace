@@ -38,6 +38,14 @@ export class CourseMap {
     // Scroll-wheel zoom only after the user clicks into the map (avoids hijacking page scroll)
     this.map.on('click', () => this.map.scrollWheelZoom.enable());
     this.map.on('mouseout', () => this.map.scrollWheelZoom.disable());
+    // Touch devices: one-finger panning only after the map is tapped, so swiping over it scrolls the
+    // page instead of trapping it. Pinch-zoom always works. lock() is called on taps outside the map.
+    this.touch = window.matchMedia('(pointer: coarse)').matches;
+    if (this.touch) {
+      this.map.dragging.disable();
+      el.classList.add('map-locked');
+      this.map.on('click', () => this.unlock());
+    }
   }
 
   setTheme(theme) {
@@ -148,4 +156,15 @@ export class CourseMap {
     if (this.bounds) this.map.fitBounds(this.bounds, { padding: [28, 28], animate });
   }
   invalidate() { this.map.invalidateSize(); }
+
+  unlock() {
+    if (!this.touch) return;
+    this.map.dragging.enable();
+    this.map.getContainer().classList.remove('map-locked');
+  }
+  lock() {
+    if (!this.touch) return;
+    this.map.dragging.disable();
+    this.map.getContainer().classList.add('map-locked');
+  }
 }
