@@ -123,6 +123,46 @@ describe('adjustments', () => {
   });
 });
 
+describe('evaluate mode (reverse conversion)', () => {
+  // Hilly, windy, warm course: 3 rolling hills on a 20 km out-and-back-ish line heading east
+  const pts = course(2001, d => 25 * Math.sin(d / 1500) + 10 * Math.sin(d / 400));
+  const base = buildWindows(pts, pts.map(p => p.ele));
+  const wxHours = [6, 7, 8, 9, 10, 11].map(t => ({ time: `2026-10-01T${String(t).padStart(2, '0')}:00`, tempC: 14 + (t - 6) * 2, rh: 70, windMs: 6, windFromDeg: 80 }));
+  const goal = 5400; // 1:30:00 flat goal for 20 km
+  const v0 = 20000 / goal;
+  const combos = [
+    { grade: true, wind: true, heat: true }, { grade: true, wind: false, heat: false },
+    { grade: false, wind: true, heat: false }, { grade: false, wind: false, heat: true },
+    { grade: true, wind: true, heat: false }, { grade: false, wind: false, heat: false }
+  ];
+  it('round trip: plan time → evaluate gives back the goal (same weather timing)', async () => {
+    const { solveFlatSpeed } = await import('../src/lib/adjust.js');
+    const w = attachWeather(base, v0, wxHours, '2026-10-01T08:00');
+    for (const on of combos) {
+      const courseTime = runModel(w, v0, on).total;
+      const flat = 20000 / solveFlatSpeed(w, courseTime, on);
+      expect(Math.abs(flat - goal)).toBeLessThan(0.05);
+    }
+  }, 30000); // heavy: many full model runs
+  it('with weather timed by the actual pace (as the app does) the round trip stays within seconds', async () => {
+    const { solveFlatSpeed } = await import('../src/lib/adjust.js');
+    const on = combos[0];
+    const courseTime = runModel(attachWeather(base, v0, wxHours, '2026-10-01T08:00'), v0, on).total;
+    const w = attachWeather(base, 20000 / courseTime, wxHours, '2026-10-01T08:00');
+    const flat = 20000 / solveFlatSpeed(w, courseTime, on);
+    expect(Math.abs(flat - goal)).toBeLessThan(10);
+  }, 30000); // heavy: many full model runs
+  it('a hard course and day make the flat equivalent faster than the actual time', async () => {
+    const { solveFlatSpeed } = await import('../src/lib/adjust.js');
+    const actual = 6000;
+    const w = attachWeather(base, 20000 / actual, wxHours, '2026-10-01T08:00');
+    const flat = 20000 / solveFlatSpeed(w, actual, combos[0]);
+    expect(flat).toBeLessThan(actual);
+    // with every factor excluded the equivalent is the actual time
+    expect(20000 / solveFlatSpeed(w, actual, combos[5])).toBeCloseTo(actual, 1);
+  }, 30000); // heavy: many full model runs
+});
+
 describe('splits', () => {
   const pts = course(4001, () => 0);
   const windows = buildWindows(pts, pts.map(p => p.ele));

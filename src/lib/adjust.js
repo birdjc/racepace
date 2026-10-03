@@ -18,9 +18,9 @@ export const DOWNHILL_CAP_GRADE = -0.08;
 // Effort and heart rate lag terrain by 30–60 s, so runners don't switch pace every 100 m.
 export const PACE_SMOOTH_M = 200;
 
-// Weather profile: each window gets the conditions of the hour block it falls in, using
-// elapsed time at the base (average) pace at the window midpoint. Adds the wind angle
-// relative to the runner (0° = headwind).
+// Weather profile: each window gets the conditions of the hour block it falls in, using elapsed
+// time at a steady average speed at the window midpoint (plan mode: the goal pace; evaluate mode:
+// the actual finish time's pace). Adds the wind angle relative to the runner (0° = headwind).
 export function attachWeather(windows, baseSpeed, hours, startLocal) {
   return windows.map(w => {
     const elapsed = ((w.d0 + w.d1) / 2) / baseSpeed;
@@ -96,6 +96,21 @@ export function computeAll(windows, baseSpeed, toggles) {
   const warnings = [...runs.total.warnings];
   if (toggles.grade) warnings.push(...steepGradeNotes(windows));
   return { runs, impact, warnings };
+}
+
+// Evaluate mode: the flat, ideal-conditions speed whose adjusted course time equals targetSec.
+// Course time falls monotonically as the flat speed rises, and is close to proportional to 1/speed,
+// so scaling the guess by (model time / target) converges in a few rounds.
+export function solveFlatSpeed(windows, targetSec, on, { tolSec = 0.01, maxIter = 40 } = {}) {
+  const distance = windows[windows.length - 1].d1;
+  let v = distance / targetSec;          // first guess: the actual average speed
+  for (let i = 0; i < maxIter; i++) {
+    const t = runModel(windows, v, on).total;
+    if (!Number.isFinite(t)) throw new Error('Could not convert this time: it is outside the range the models cover.');
+    if (Math.abs(t - targetSec) < tolSec) return v;
+    v *= t / targetSec;
+  }
+  return v;
 }
 
 // Same thresholds as the original GAP calculator's info notes

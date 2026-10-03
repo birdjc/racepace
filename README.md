@@ -1,8 +1,13 @@
 # Race Pace Adjuster
 
-Upload a GPX course, a start date and time, and a goal finish time. The app returns a split-by-split
-pace plan adjusted for **grade**, **wind** and **heat/humidity**, using John J. Davis's
-Running Writings models.
+Upload a GPX course and a start date and time, then choose a mode:
+
+- **Plan a race:** enter a goal finish time and get a split-by-split pace plan adjusted for
+  **grade**, **wind** and **heat/humidity**.
+- **Evaluate a result:** enter a finish time on that course and see what it is worth on a flat
+  course in ideal conditions. Works for past races (recorded weather) and future ones.
+
+Both use John J. Davis's Running Writings models.
 
 **Live: https://birdjc.github.io/racepace/**
 
@@ -52,6 +57,9 @@ build works on any static host:
    Each hour block from the start time gets that hour's conditions.
 5. **Adjustments.** Applied in the order grade → wind (α = 0.3, 68 kg) → heat, each in "effort" mode.
    Each one can be switched off.
+6. **Evaluate mode** searches for the flat, ideal-conditions time whose adjusted time on the course
+   equals the entered time (assuming an even effort), so it is the exact inverse of plan mode. The
+   hourly weather is placed using the entered time's average pace.
 
 Formula details are in [`formulas/FORMULAS.md`](formulas/FORMULAS.md).
 

@@ -4,7 +4,7 @@ import { buildCourse } from './lib/course.js';
 import { getRaceWeather, localToMs } from './lib/weather.js';
 import { smoothElevation } from './lib/profile.js';
 import { buildWindows, hillSegments, WINDOW_M } from './lib/segments.js';
-import { attachWeather, computeAll, pacingOpportunity, headwindComponent, WIND_ALPHA, RUNNER_KG, DOWNHILL_CAP_GRADE, PACE_SMOOTH_M } from './lib/adjust.js';
+import { attachWeather, computeAll, solveFlatSpeed, pacingOpportunity, headwindComponent, WIND_ALPHA, RUNNER_KG, DOWNHILL_CAP_GRADE, PACE_SMOOTH_M } from './lib/adjust.js';
 import { makeSplits, splitBoundaries, splitPace, splitPaceDelta, timeAt } from './lib/splits.js';
 import { parseDuration } from './lib/pace.js';
 import { reverseGeocode } from './lib/geocode.js';
@@ -19,9 +19,38 @@ import { SplitChart, renderSplitTable, downloadCsv } from './ui/splits.js';
 
 const LAYER_NAMES = { total: 'Total', grade: 'Elevation', wind: 'Wind', heat: 'Heat & humidity' };
 
+// Two modes share the whole results engine. Internally S.goalSec / S.v0 are always the flat,
+// ideal-conditions time and speed: the goal in plan mode, the solved equivalent in evaluate mode.
+const MODE_TEXT = {
+  plan: {
+    title: 'Pace your race for the course and the conditions',
+    intro: 'Upload a course, tell us when you start and how fast you plan to run. You\'ll get split-by-split paces adjusted for hills, wind, and heat.',
+    step3: 'Goal', timeLabel: 'Expected finish time',
+    hint: 'the time you\'d run on a flat course in ideal weather.',
+    hintAvg: pace => `Average ${pace} on flat ground in ideal weather.`,
+    missing: 'an expected finish time', submit: 'Build my race plan', progressModel: 'Pace adjustments',
+    pill: 'Race plan', leftK: 'Goal', rightK: 'Adjusted', oppTitle: 'Pacing opportunity',
+    factorsNote: 'Each card shows that factor on its own. Click a card to include or exclude it from your plan.',
+    paceWord: 'Plan pace', vsWord: 'vs goal', csvVs: 'vs goal'
+  },
+  evaluate: {
+    title: 'See what your result is worth',
+    intro: 'Upload the course, when you started, and your finish time. You\'ll see what that time is worth on a flat course in ideal conditions. Future races work too.',
+    step3: 'Result', timeLabel: 'Your finish time on this course',
+    hint: 'your actual (or hoped-for) time on this course on that day.',
+    hintAvg: pace => `Average ${pace} on this course.`,
+    missing: 'your finish time', submit: 'Evaluate my result', progressModel: 'Flat-course equivalent',
+    pill: 'Result evaluation', leftK: 'On this course', rightK: 'Flat & ideal equivalent', oppTitle: 'Course difficulty',
+    factorsNote: 'Each card shows the time that factor cost (+) or saved (−) you on its own. Click a card to include or exclude it from the equivalent.',
+    paceWord: 'Even-effort pace', vsWord: 'vs flat equiv.', csvVs: 'vs flat equivalent'
+  }
+};
+
 // ---------------------------------------------------------------- state
 const input = { gpxText: null, fileName: null, preview: null, nameAuto: true };
 let units = load('units', 'mi') === 'km' ? 'km' : 'mi';
+let mode = load('mode', 'plan') === 'evaluate' ? 'evaluate' : 'plan';
+const T = () => MODE_TEXT[S ? S.mode : mode];
 let S = null;          // results state
 let map = null, profile = null, splitChart = null;
 
@@ -120,12 +149,11 @@ function updateInputHints() {
   const goal = parseDuration($('goal-time').value);
   const hint = $('goal-hint');
   if (goal > 0 && p) {
-    hint.textContent = `Average ${formatPaceSec(goal / p.distance * unitM(units), units)} on flat ground in ideal weather.`;
+    hint.textContent = MODE_TEXT[mode].hintAvg(formatPaceSec(goal / p.distance * unitM(units), units));
     hint.classList.add('ok');
   } else {
-    hint.textContent = isTouch()
-      ? 'The time you\'d run on a flat course in ideal weather.'
-      : 'h:mm:ss, the time you\'d run on a flat course in ideal weather.';
+    const h = MODE_TEXT[mode].hint;
+    hint.textContent = isTouch() ? h[0].toUpperCase() + h.slice(1) : `h:mm:ss, ${h}`;
     hint.classList.remove('ok');
   }
 }
@@ -195,6 +223,38 @@ GOAL_PARTS.forEach((id, i) => {
 });
 touchQuery.addEventListener('change', applyDeviceMode);
 
+// ---------- plan / evaluate mode switch ----------
+function applyMode() {
+  const t = MODE_TEXT[mode];
+  $('mode').querySelectorAll('button').forEach(b => {
+    const on = b.dataset.mode === mode;
+    b.setAttribute('aria-checked', String(on));
+    b.tabIndex = on ? 0 : -1;
+  });
+  $('input-title').textContent = t.title;
+  $('intro-text').textContent = t.intro;
+  $('step3-title').textContent = t.step3;
+  $('goal-label').textContent = t.timeLabel;
+  $('submit').textContent = t.submit;
+  $('progress-model').textContent = t.progressModel;
+  updateInputHints();
+}
+function setMode(m) {
+  if (m === mode) return;
+  mode = m;
+  save('mode', m);
+  hideFormError();
+  applyMode();
+}
+$('mode').addEventListener('click', e => { const b = e.target.closest('button'); if (b) setMode(b.dataset.mode); });
+$('mode').addEventListener('keydown', e => {
+  if (!['ArrowLeft', 'ArrowRight'].includes(e.key)) return;
+  e.preventDefault();
+  const next = mode === 'plan' ? 'evaluate' : 'plan';
+  setMode(next);
+  $('mode').querySelector(`[data-mode="${next}"]`).focus();
+});
+
 // Restore last-used inputs (convenience only)
 (function restoreInputs() {
   const last = load('inputs', {}) || {};
@@ -202,6 +262,7 @@ touchQuery.addEventListener('change', applyDeviceMode);
   if (last.time) $('start-time').value = last.time;
   if (last.goal) $('goal-time').value = last.goal;
   applyDeviceMode();
+  applyMode();
 })();
 
 function showFormError(msg) { const el = $('form-error'); el.textContent = msg; el.hidden = false; }
@@ -216,6 +277,15 @@ function setProgress(step) {
   });
 }
 
+// Plan: the entered time is the flat goal. Evaluate: solve for the flat time whose adjusted course
+// time equals the entered time (re-solved whenever a factor is switched on or off).
+function recompute() {
+  const dist = S.course.distance;
+  S.v0 = S.mode === 'evaluate' ? solveFlatSpeed(S.windows, S.enteredSec, S.toggles) : dist / S.enteredSec;
+  S.goalSec = dist / S.v0;
+  S.result = computeAll(S.windows, S.v0, S.toggles);
+}
+
 $('input-form').addEventListener('submit', async e => {
   e.preventDefault();
   hideFormError();
@@ -228,7 +298,7 @@ $('input-form').addEventListener('submit', async e => {
   const partsOk = !isTouch() || goalPartsValid();
   if (!partsOk) problems.push('keep minutes and seconds between 0 and 59');
   else if (!(goalSec > 0)) {
-    problems.push(isTouch() ? 'enter an expected finish time (hours, minutes, seconds)' : 'enter an expected finish time like 3:15:00');
+    problems.push(`enter ${MODE_TEXT[mode].missing}${isTouch() ? ' (hours, minutes, seconds)' : ' like 3:15:00'}`);
     $('goal-time').setAttribute('aria-invalid', 'true');
     if (isTouch()) GOAL_PARTS.forEach(id => $(id).setAttribute('aria-invalid', 'true'));
   }
@@ -247,23 +317,26 @@ $('input-form').addEventListener('submit', async e => {
     const baseWindows = buildWindows(course.points, prof.ele);
     const hills = hillSegments(baseWindows);
     const startLocal = `${date}T${time}`;
-    const v0 = course.distance / goalSec;
+    const runMode = mode;
     setProgress('weather');
     const [weather, place] = await Promise.all([
       getRaceWeather({ lat: course.centroid.lat, lon: course.centroid.lon, startLocal, durationSec: goalSec }),
       reverseGeocode(course.points[0].lat, course.points[0].lon).catch(() => null)
     ]);
     setProgress('model');
-    const windows = attachWeather(baseWindows, v0, weather.hours, startLocal);
+    await new Promise(r => setTimeout(r, 0));
+    // The entered time's average pace places the hourly weather (plan: goal pace; evaluate: actual pace)
+    const windows = attachWeather(baseWindows, course.distance / goalSec, weather.hours, startLocal);
     let gain = 0, loss = 0;
     windows.forEach(w => { const dz = w.ele1 - w.ele0; if (dz > 0) gain += dz; else loss -= dz; });
     S = {
-      course, prof, windows, hills, weather, place, startLocal, goalSec, v0, gain, loss,
+      mode: runMode, course, prof, windows, hills, weather, place, startLocal, gain, loss,
+      enteredSec: goalSec,
       name: $('race-name-input').value.trim() || course.name || input.fileName.replace(/\.gpx$/i, ''),
       toggles: { grade: true, wind: true, heat: true },
       splitMode: units, layer: 'total', selected: null, hovered: null
     };
-    S.result = computeAll(windows, v0, S.toggles);
+    recompute();
     showResults();
   } catch (ex) {
     console.error(ex);
@@ -348,13 +421,25 @@ segRadio('split-mode', 'm', m => {
   else { renderLayer(); renderSplits(); }
   map.fit();
 });
+// Recomputing takes a few hundred ms (evaluate mode re-solves), so show the switch flip and a busy
+// state first, then compute on the next frame. Clicks during an update are ignored.
+let updating = false;
 document.querySelectorAll('.factor').forEach(b => b.addEventListener('click', () => {
-  if (!S) return;
+  if (!S || updating) return;
   const f = b.dataset.f;
   S.toggles[f] = !S.toggles[f];
   b.setAttribute('aria-pressed', String(S.toggles[f]));
-  S.result = computeAll(S.windows, S.v0, S.toggles);
-  renderResults();
+  updating = true;
+  $('results-view').classList.add('updating');
+  $('results-view').setAttribute('aria-busy', 'true');
+  setTimeout(() => {
+    try { recompute(); renderResults(); }
+    finally {
+      updating = false;
+      $('results-view').classList.remove('updating');
+      $('results-view').removeAttribute('aria-busy');
+    }
+  }, 30);
 }));
 $('map-fit').addEventListener('click', () => { if (!S) return; S.selected = null; applyHighlightState(); map.fit(); });
 $('map-expand').addEventListener('click', () => {
@@ -392,6 +477,7 @@ function deltasFor(layer) {
 function renderHeader() {
   const { course, weather, place, startLocal, gain, loss } = S;
   $('race-title').textContent = S.name;
+  $('race-mode').textContent = T().pill;
   const when = new Date(`${startLocal}:00`);
   const src = { forecast: 'Forecast weather', archive: 'Recorded weather', climatology: '3-year weather average' }[weather.source];
   const tz = (() => {
@@ -414,12 +500,19 @@ function renderHeader() {
 
 function renderSummary() {
   const { goalSec, course, result, toggles } = S;
-  const u = unitM(units);
-  const adj = result.runs.total.total, d = adj - goalSec;
-  $('goal-time-out').textContent = formatDuration(goalSec, { forceHours: true });
-  $('goal-pace-out').textContent = `${formatPaceSec(goalSec / course.distance * u, units)} average`;
-  $('adj-time-out').textContent = formatDuration(adj, { forceHours: true });
-  $('adj-pace-out').innerHTML = `${esc(formatPaceSec(adj / course.distance * u, units))} · <span class="delta ${deltaClass(d)}">${esc(formatDelta(d))}</span>`;
+  const u = unitM(units), t = T();
+  const courseSec = result.runs.total.total;
+  // Plan: goal → adjusted course time. Evaluate: course time → flat, ideal equivalent.
+  const [left, right] = S.mode === 'evaluate' ? [courseSec, goalSec] : [goalSec, courseSec];
+  const d = right - left;
+  $('finish-left-k').textContent = t.leftK;
+  $('finish-right-k').textContent = t.rightK;
+  $('opp-title').textContent = t.oppTitle;
+  $('factors-note').textContent = t.factorsNote;
+  $('goal-time-out').textContent = formatDuration(left, { forceHours: true });
+  $('goal-pace-out').textContent = `${formatPaceSec(left / course.distance * u, units)} average`;
+  $('adj-time-out').textContent = formatDuration(right, { forceHours: true });
+  $('adj-pace-out').innerHTML = `${esc(formatPaceSec(right / course.distance * u, units))} · <span class="delta ${deltaClass(d)}">${esc(formatDelta(d))}</span>`;
 
   for (const b of document.querySelectorAll('.factor')) {
     const f = b.dataset.f, sec = result.impact[f];
@@ -434,10 +527,16 @@ function renderSummary() {
   $('opp-mark').style.left = `${opp.score * 100}%`;
   const anyOn = toggles.grade || toggles.wind || toggles.heat;
   $('opp-label').textContent = anyOn ? opp.label : 'No adjustments';
-  $('opp-gauge').setAttribute('aria-label', `Pacing opportunity: ${anyOn ? opp.label : 'no adjustments included'}`);
-  $('opp-note').textContent = anyOn
-    ? `The included conditions ${opp.pct >= 0 ? 'add' : 'take'} ${Math.abs(opp.pct).toFixed(1)}% ${opp.pct >= 0 ? 'to' : 'off'} your goal time.`
-    : 'All adjustments are excluded, so the plan is your goal pace throughout.';
+  $('opp-gauge').setAttribute('aria-label', `${t.oppTitle}: ${anyOn ? opp.label : 'no adjustments included'}`);
+  if (S.mode === 'evaluate') {
+    $('opp-note').textContent = anyOn
+      ? `The included conditions made this course ${Math.abs(opp.pct).toFixed(1)}% ${opp.pct >= 0 ? 'slower' : 'faster'} than a flat course in ideal weather.`
+      : 'All factors are excluded, so the equivalent equals your time.';
+  } else {
+    $('opp-note').textContent = anyOn
+      ? `The included conditions ${opp.pct >= 0 ? 'add' : 'take'} ${Math.abs(opp.pct).toFixed(1)}% ${opp.pct >= 0 ? 'to' : 'off'} your goal time.`
+      : 'All adjustments are excluded, so the plan is your goal pace throughout.';
+  }
 }
 
 // Map colours, legend, profile and notes for the current layer
@@ -449,7 +548,9 @@ function renderLayer() {
     bands: S.splitMode === 'hill' ? S.hills : null
   });
   const notes = {
-    total: 'Bars show how each 100 m stretch of your plan differs from goal pace, with all included adjustments.',
+    total: S.mode === 'evaluate'
+      ? 'Bars show how an even effort runs slower (red) or faster (blue) than your flat-equivalent pace on each 100 m stretch.'
+      : 'Bars show how each 100 m stretch of your plan differs from goal pace, with all included adjustments.',
     grade: `Bars show the effect of the grade alone. Descents steeper than ${Math.round(DOWNHILL_CAP_GRADE * 100)}% get no extra benefit.`,
     wind: (() => {
       const hw = S.windows.map(headwindComponent);
@@ -458,7 +559,7 @@ function renderLayer() {
     })(),
     heat: 'Bars show the effect of temperature and humidity alone, stepping hour by hour from the start.'
   };
-  const excluded = S.layer !== 'total' && !S.toggles[S.layer] ? ` ${LAYER_NAMES[S.layer]} is currently excluded from your plan.` : '';
+  const excluded = S.layer !== 'total' && !S.toggles[S.layer] ? ` ${LAYER_NAMES[S.layer]} is currently excluded from your ${S.mode === 'evaluate' ? 'equivalent' : 'plan'}.` : '';
   $('profile-note').textContent = `${LAYER_NAMES[S.layer]} · hover, tap or use ← → to explore`;
   $('profile-sub').textContent = `${notes[S.layer]}${excluded}${S.splitMode === 'hill' ? ' Shaded bands mark the hill segments.' : ''}`;
   applyHighlightState();
@@ -533,7 +634,7 @@ function renderSplits() {
     active: S.hovered ?? S.selected
   });
   const desc = S.splitMode === 'hill' ? `${S.hills.length} terrain-based segments` : `${S.splitMode === 'mi' ? 'Mile' : 'Kilometre'} splits`;
-  $('splits-sub').textContent = `${desc}. Bars show time gained or lost per split (${LAYER_NAMES[S.layer].toLowerCase()}). Hover to see a split on the map and profile; click to zoom to it.`;
+  $('splits-sub').textContent = `${S.mode === 'evaluate' ? 'Estimated even-effort splits for your time. ' : ''}${desc}. Bars show time gained or lost per split (${LAYER_NAMES[S.layer].toLowerCase()}). Hover to see a split on the map and profile; click to zoom to it.`;
   renderSplitTable($('split-table'), S.rows, { firstHeader: S.splitMode === 'hill' ? 'Segment' : 'Distance', unit: paceUnit() });
   applyHighlightState();
 }
@@ -547,7 +648,7 @@ function hoverSplit(i, ev, source) {
   const html = `<div class="tt-title">${esc(r.label)}</div>${r.sub ? `<div class="note">${esc(r.sub)}</div>` : ''}
     ${ttRow('Split', esc(r.time))}
     ${ttRow(`Pace /${paceUnit()}`, `${esc(r.pace)} (${esc(r.paceDelta)})`)}
-    ${S.layer !== 'total' ? ttRow(`${LAYER_NAMES[S.layer]} alone`, esc(formatDelta(lr.delta))) : ttRow('vs goal', esc(formatDelta(r.raw.delta)))}
+    ${S.layer !== 'total' ? ttRow(`${LAYER_NAMES[S.layer]} alone`, esc(formatDelta(lr.delta))) : ttRow(T().vsWord, esc(formatDelta(r.raw.delta)))}
     ${ttRow('Elapsed', esc(r.cum))}`;
   showTooltip(html, ev.clientX, ev.clientY);
 }
@@ -602,7 +703,7 @@ function focusAt(d, ev) {
   const elapsed = timeAt(S.windows, plan.cum, d);
   const f = run => `<span class="${S.toggles[run] ? deltaClass(raw(run)) : ''}">${formatDelta(raw(run))}</span>${S.toggles[run] ? '' : ' · off'}`;
   const html = `<div class="tt-title">${(d / u).toFixed(2)} ${units} · ${formatDuration(elapsed, { forceHours: true })} elapsed</div>
-    ${ttRow('Plan pace', `${formatPaceSec(u / plan.speeds[k], units)} <span class="${deltaClass(planDelta)}">(${formatDelta(planDelta)})</span>`)}
+    ${ttRow(T().paceWord, `${formatPaceSec(u / plan.speeds[k], units)} <span class="${deltaClass(planDelta)}">(${formatDelta(planDelta)})</span>`)}
     <div class="tt-sep">This 100 m stretch</div>
     ${ttRow('Elevation', `${Math.round(ele)} ${eleUnit(units)} · ${w.grade >= 0 ? '+' : '−'}${Math.abs(w.grade * 100).toFixed(1)}%`)}
     ${ttRow('Weather', `${temp} · ${Math.round(w.wx.rh)}% RH`)}
@@ -610,7 +711,7 @@ function focusAt(d, ev) {
     ${ttRow('Grade effect', f('grade'))}
     ${ttRow('Wind effect', f('wind'))}
     ${ttRow('Heat effect', f('heat'))}
-    <div class="tt-foot">Plan pace is smoothed over ±${PACE_SMOOTH_M} m</div>`;
+    <div class="tt-foot">${T().paceWord} is smoothed over ±${PACE_SMOOTH_M} m</div>`;
   if (ev) showTooltip(html, ev.clientX, ev.clientY);
 }
 function clearFocus() {
@@ -660,11 +761,12 @@ function renderMethod() {
       A spike filter replaced ${prof.spikesReplaced} points, then a Savitzky–Golay filter (${prof.windowM} m window) smoothed the profile${prof.windowM > 150 ? '. The wider window was used because the GPX elevation looked noisy' : ''}.</p>
     <p><b>Segments.</b> Paces are calculated on ${windows.length} stretches of about ${WINDOW_M} m, each with its own grade and heading.
       For the hill-segment view these are grouped into ${hills.length} segments, with hills found relative to this course's own terrain.</p>
-    <p><b>Adjustments</b> are applied in the order grade → wind → heat, each keeping the effort of your goal pace on flat ground in calm, cool air.
+    ${S.mode === 'evaluate' ? `<p><b>Evaluate mode.</b> The app finds the flat, ideal-conditions time whose adjusted time on this course matches yours, assuming an even effort. The splits show how that even effort would have split on this course; compare them with your watch splits.</p>` : ''}
+    <p><b>Adjustments</b> are applied in the order grade → wind → heat, each keeping the effort of the flat-ground pace in calm, cool air.
       Grade uses Minetti (2002) and the Black et al. (2018) running-cost data, with descents steeper than ${Math.round(DOWNHILL_CAP_GRADE * 100)}% given no extra benefit.
       Wind uses an aerodynamic drag model, with wind measured at 10 m and scaled to chest height (α = ${WIND_ALPHA}), for a ${RUNNER_KG} kg runner.
       Heat uses a temperature and humidity model fit to marathon results (Mantzios et al. 2022); applying it hour by hour is an approximation.
-      Each hour's weather is assigned using elapsed time at your goal pace. The pace plan is then smoothed over ±${PACE_SMOOTH_M} m, which leaves the finish time unchanged.</p>
+      Each hour's weather is assigned using elapsed time at your ${S.mode === 'evaluate' ? 'actual average' : 'goal'} pace. The pace plan is then smoothed over ±${PACE_SMOOTH_M} m, which leaves the finish time unchanged.</p>
     <p><b>Credits.</b> Models adapted from John J. Davis's <a href="https://apps.runningwritings.com/" target="_blank" rel="noopener">Running Writings</a> calculators (MIT license).
       Weather by <a href="https://open-meteo.com/" target="_blank" rel="noopener">Open-Meteo.com</a> (CC BY 4.0). Map tiles © OpenStreetMap contributors${BASEMAP_PROVIDER === 'carto' ? ', © CARTO' : ''}. Elevation: Mapzen / AWS Terrain Tiles. Place names: Nominatim.</p>`;
   $('warnings').innerHTML = result.warnings.map(w => `<li>${esc(w)}</li>`).join('');
@@ -675,14 +777,14 @@ function renderMethod() {
 function exportCsv() {
   if (!S) return;
   const pu = paceUnit();
-  const header = [S.splitMode === 'hill' ? 'Segment' : 'Distance', 'Detail', `From (${units})`, `To (${units})`, 'Split time', `Pace /${pu}`, 'Pace vs goal', 'Elapsed', 'Elapsed vs goal'];
+  const header = [S.splitMode === 'hill' ? 'Segment' : 'Distance', 'Detail', `From (${units})`, `To (${units})`, 'Split time', `Pace /${pu}`, `Pace ${T().csvVs}`, 'Elapsed', `Elapsed ${T().csvVs}`];
   const ascii = s => (s ?? '').replace(/−/g, '-').replace(/–/g, '-');
   const rows = S.rows.map(r => [
     ascii(r.label), ascii(r.sub), r.summary ? '' : (r.d0 / unitM(units)).toFixed(2), r.summary ? '' : (r.d1 / unitM(units)).toFixed(2),
     r.time, r.pace, ascii(r.paceDelta), r.cum, ascii(r.cumDelta)
   ]);
   const safe = S.name.replace(/[^\w\- ]+/g, '').trim().replace(/\s+/g, '-') || 'race';
-  downloadCsv(`${safe}-${S.splitMode}-splits.csv`, header, rows);
+  downloadCsv(`${safe}-${S.mode === 'evaluate' ? 'evaluation' : 'plan'}-${S.splitMode}-splits.csv`, header, rows);
 }
 
 // Read-only hook for debugging in the console

@@ -62,7 +62,9 @@
 - [ ] Restrict the CARTO key to `birdjc.github.io` in the CARTO dashboard
 - Dev key: separate localhost CARTO key in `.env.development.local` (gitignored, used by `npm run dev`); production key only in the GitHub secret
 - [x] Mobile fixes (2026-10-02): touch devices (`pointer: coarse`) get no file-type filter (iOS greys out .gpx; contents still checked) and three h/min/sec goal boxes; desktop keeps the .gpx filter and one h:mm:ss box. Date/time inputs fit narrow screens (iOS min-width). Touch map pans only after a tap (no scroll trap); tapping elsewhere closes tooltips. Charts render without waiting for ResizeObserver
-- [ ] User to re-test on iPhone (iOS Safari 26.6.1)
+- [x] User re-tested on iPhone (2026-10-03: "looks good")
+- [x] **Evaluate mode (reverse conversion), 2026-10-03**: input mode switch ("Plan a race" / "Evaluate a result", name may change); solves for the flat-equivalent time with `solveFlatSpeed` (exact inverse of plan mode, round-trip tests); weather timed by the actual average pace; results reuse the whole engine with evaluate wording; gauge renamed "Course difficulty" in this mode; splits = estimated even-effort splits; factor toggles re-solve (busy state while updating)
+- [ ] Later (decision 5, on hold): use GPX timestamps to auto-fill start/finish and analyse actual pacing
 
 ## Open questions / notes
 - The heat model is fit to whole marathons; applying it hourly is an approximation (see FORMULAS.md)

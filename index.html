@@ -36,10 +36,21 @@
     <section id="input-view" class="input-view" aria-labelledby="input-title">
       <div class="intro">
         <h1 id="input-title">Pace your race for the course and the conditions</h1>
-        <p>Upload a course, tell us when you start and how fast you plan to run. You'll get split-by-split paces adjusted for hills, wind, and heat.</p>
+        <p id="intro-text">Upload a course, tell us when you start and how fast you plan to run. You'll get split-by-split paces adjusted for hills, wind, and heat.</p>
       </div>
 
       <form id="input-form" class="card form-card" novalidate>
+        <div class="mode-switch" id="mode" role="radiogroup" aria-label="What would you like to do?">
+          <button type="button" role="radio" data-mode="plan" aria-checked="true">
+            <span class="mode-name">Plan a race</span>
+            <span class="mode-desc">Goal time → paces for this course</span>
+          </button>
+          <button type="button" role="radio" data-mode="evaluate" aria-checked="false">
+            <span class="mode-name">Evaluate a result</span>
+            <span class="mode-desc">Course time → flat, ideal equivalent</span>
+          </button>
+        </div>
+
         <fieldset class="step">
           <legend><span class="step-n">1</span>Course</legend>
           <label id="dropzone" class="dropzone" for="gpx-file" tabindex="0">
@@ -80,7 +91,7 @@
         </fieldset>
 
         <fieldset class="step">
-          <legend><span class="step-n">3</span>Goal</legend>
+          <legend><span class="step-n">3</span><span id="step3-title">Goal</span></legend>
           <div class="field">
             <label class="label" for="goal-time" id="goal-label">Expected finish time</label>
             <!-- Desktop: one h:mm:ss box. Touch devices: three number boxes (phone number pads have no colon). -->
@@ -100,7 +111,7 @@
           <li data-step="course">Reading the course</li>
           <li data-step="elevation">Elevation profile</li>
           <li data-step="weather">Race-day weather</li>
-          <li data-step="model">Pace adjustments</li>
+          <li data-step="model" id="progress-model">Pace adjustments</li>
         </ol>
       </form>
     </section>
@@ -110,7 +121,7 @@
       <div class="race-head">
         <div>
           <button type="button" class="link-btn back" id="back">← Edit inputs</button>
-          <h1 id="race-title">Race</h1>
+          <h1 id="race-title-row"><span id="race-title">Race</span> <span class="pill mode-pill" id="race-mode"></span></h1>
           <p class="race-meta" id="race-meta"></p>
         </div>
         <div class="race-head-actions">
@@ -126,19 +137,19 @@
         <div class="card finish-card">
           <div class="finish-cols">
             <div>
-              <div class="kicker">Goal</div>
+              <div class="kicker" id="finish-left-k">Goal</div>
               <div class="big" id="goal-time-out"></div>
               <div class="sub" id="goal-pace-out"></div>
             </div>
             <svg class="arrow" viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><path d="M5 12h14m0 0-5-5m5 5-5 5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
             <div>
-              <div class="kicker">Adjusted</div>
+              <div class="kicker" id="finish-right-k">Adjusted</div>
               <div class="big" id="adj-time-out"></div>
               <div class="sub" id="adj-pace-out"></div>
             </div>
           </div>
           <div class="opp">
-            <div class="opp-head"><span class="kicker">Pacing opportunity</span><span class="pill" id="opp-label"></span></div>
+            <div class="opp-head"><span class="kicker" id="opp-title">Pacing opportunity</span><span class="pill" id="opp-label"></span></div>
             <div class="gauge" role="img" id="opp-gauge"><div class="gauge-mark" id="opp-mark"></div></div>
             <div class="gauge-labels"><span>Challenging</span><span>Moderate</span><span>Favorable</span></div>
             <p class="note" id="opp-note"></p>
@@ -158,7 +169,7 @@
             <span class="factor-top"><span class="factor-name">Heat</span><span class="switch" aria-hidden="true"></span></span>
             <span class="factor-val"></span><span class="factor-sub"></span>
           </button>
-          <p class="note factors-note">Each card shows that factor on its own. Click a card to include or exclude it from your plan.</p>
+          <p class="note factors-note" id="factors-note">Each card shows that factor on its own. Click a card to include or exclude it from your plan.</p>
         </div>
       </div>
 
