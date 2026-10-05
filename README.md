@@ -38,6 +38,15 @@ npm run build            # static site in dist/
 node scripts/e2e.mjs [file.gpx] [YYYY-MM-DDTHH:MM]   # full pipeline in Node with live data
 ```
 
+### Demo video
+`video/record.mjs` records a scripted walkthrough of the live site as a LinkedIn-ready MP4
+(1080×1350, H.264, 30 fps, burned-in captions) using Playwright and ffmpeg. It has its own
+dependencies, separate from the app:
+```bash
+cd video && npm install && npx playwright install chromium
+node record.mjs "path/to/race.gpx" "Race name"   # → video/out/*.mp4 and a thumbnail
+```
+
 ## Deploy
 `npm run build` produces a static `dist/` folder. `vite.config.js` uses `base: './'`, so the same
 build works on any static host:
