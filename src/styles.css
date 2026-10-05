@@ -148,6 +148,16 @@ main { max-width: 1180px; margin: 0 auto; padding: 20px 16px 64px; }
 .dz-spark { width: 100%; max-width: 420px; height: 48px; }
 .dz-spark path.area { fill: var(--elev-fill); }
 .dz-spark path.line { fill: none; stroke: var(--elev-line); stroke-width: 1.5; vector-effect: non-scaling-stroke; }
+.recorded { border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 10px 12px; background: var(--surface); }
+.toggle-row { display: flex; align-items: flex-start; gap: 12px; cursor: pointer; }
+.toggle-row .switch { margin-top: 2px; }
+.toggle-row input:checked + .switch { background: var(--btn); }
+.toggle-row input:checked + .switch::after { transform: translateX(12px); background: var(--on-btn); }
+.toggle-row input:focus-visible + .switch { outline: 2px solid var(--focus); outline-offset: 2px; }
+.toggle-text { display: flex; flex-direction: column; gap: 2px; }
+.toggle-title { font-weight: 600; font-size: 0.92rem; }
+.field input[readonly], .goal-part input[readonly] { background: var(--surface-2); color: var(--ink-2); }
+.mode-switch button:disabled { opacity: 0.45; cursor: not-allowed; }
 .form-error { margin: 0; padding: 10px 12px; border-radius: var(--radius-sm); color: var(--error); background: color-mix(in srgb, var(--error) 10%, transparent); font-size: 0.9rem; }
 .progress { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; font-size: 0.9rem; color: var(--muted); }
 .progress li { display: flex; align-items: center; gap: 8px; }

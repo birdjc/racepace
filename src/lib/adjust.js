@@ -1,9 +1,9 @@
 // Applies the grade, wind and heat adjustments to the 100 m calculation windows.
 // Order is fixed (GAP → wind → heat) and each factor can be switched off. All three use the
 // "effort" direction: goal flat, calm, cool speed -> expected speed under course conditions.
-import { hillSpeedFromFlatEffort } from '../../formulas/gap.js';
-import { speedInWindFromEffort } from '../../formulas/wind.js';
-import { heatAdjustedSpeedFromEffort } from '../../formulas/heat.js';
+import { hillSpeedFromFlatEffort, gapFromHillSpeed } from '../../formulas/gap.js';
+import { speedInWindFromEffort, calmEquivalentSpeed } from '../../formulas/wind.js';
+import { heatAdjustedSpeedFromEffort, coolEquivalentSpeed } from '../../formulas/heat.js';
 import { weatherForElapsed } from './weather.js';
 
 export const WIND_ALPHA = 0.3;
@@ -21,9 +21,11 @@ export const PACE_SMOOTH_M = 200;
 // Weather profile: each window gets the conditions of the hour block it falls in, using elapsed
 // time at a steady average speed at the window midpoint (plan mode: the goal pace; evaluate mode:
 // the actual finish time's pace). Adds the wind angle relative to the runner (0° = headwind).
-export function attachWeather(windows, baseSpeed, hours, startLocal) {
+// `pace` is either a steady speed (m/s) or a function (window) → elapsed seconds at its midpoint,
+// used for recorded runs, where the actual time at every point is known.
+export function attachWeather(windows, pace, hours, startLocal) {
   return windows.map(w => {
-    const elapsed = ((w.d0 + w.d1) / 2) / baseSpeed;
+    const elapsed = typeof pace === 'function' ? pace(w) : ((w.d0 + w.d1) / 2) / pace;
     const wx = weatherForElapsed(hours, startLocal, elapsed);
     return { ...w, wx, windAngle: ((wx.windFromDeg - w.heading) % 360 + 360) % 360 };
   });
@@ -69,6 +71,18 @@ export function smoothPacePlan(windows, speeds, radiusM = PACE_SMOOTH_M) {
   const before = windows.reduce((s, w, i) => s + w.length * spm[i], 0);
   const after = windows.reduce((s, w, i) => s + w.length * out[i], 0);
   return out.map(x => 1 / (x * before / after));
+}
+
+// Recorded runs: the flat, ideal-conditions speed equivalent to an actual speed on one stretch.
+// Undoes the plan chain in reverse (heat → wind → grade) with John Davis's "pace" direction
+// formulas, honouring the same factor switches and grade caps. NaN if a model cannot solve it.
+export function flatEquivalentSpeed(w, actualSpeed, on) {
+  let v = actualSpeed;
+  if (!(v > 0)) return NaN;
+  if (on.heat) v = coolEquivalentSpeed(v, w.wx.tempC, w.wx.rh);
+  if (on.wind) v = calmEquivalentSpeed(v, w.wx.windMs, w.windAngle, { weightKg: RUNNER_KG, alpha: WIND_ALPHA });
+  if (on.grade && Number.isFinite(v)) v = gapFromHillSpeed(v, Math.max(DOWNHILL_CAP_GRADE, Math.min(MAX_ABS_GRADE, w.grade)));
+  return Number.isFinite(v) && v > 0 ? v : NaN;
 }
 
 // One pass over all windows. on = {grade, wind, heat}

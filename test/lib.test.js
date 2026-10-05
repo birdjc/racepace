@@ -16,7 +16,8 @@ describe('gpx', () => {
     const g = parseGpx(xml);
     expect(g.name).toBe('My Race');
     expect(g.points).toHaveLength(3);
-    expect(g.points[0]).toEqual({ lat: 42, lon: -71, ele: 10.5 });
+    expect(g.points[0]).toEqual({ lat: 42, lon: -71, ele: 10.5, t: NaN });
+    expect(g.timestamps.ok).toBe(false);
     expect(Number.isNaN(g.points[1].ele)).toBe(true);
     expect(g.eleCoverage).toBeCloseTo(2 / 3);
   });

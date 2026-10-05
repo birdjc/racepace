@@ -1,7 +1,8 @@
 import { parseGpx } from './lib/gpx.js';
 import { withDistance } from './lib/geo.js';
 import { buildCourse } from './lib/course.js';
-import { getRaceWeather, localToMs } from './lib/weather.js';
+import { getRaceWeather, getTimezone, localToMs } from './lib/weather.js';
+import { analyseRecording, utcToLocal, STOP_SPEED } from './lib/recorded.js';
 import { smoothElevation } from './lib/profile.js';
 import { buildWindows, hillSegments, WINDOW_M } from './lib/segments.js';
 import { attachWeather, computeAll, solveFlatSpeed, pacingOpportunity, headwindComponent, WIND_ALPHA, RUNNER_KG, DOWNHILL_CAP_GRADE, PACE_SMOOTH_M } from './lib/adjust.js';
@@ -17,7 +18,7 @@ import { CourseMap, BASEMAP_PROVIDER } from './ui/map.js';
 import { ProfileChart } from './ui/profile.js';
 import { SplitChart, renderSplitTable, downloadCsv } from './ui/splits.js';
 
-const LAYER_NAMES = { total: 'Total', grade: 'Elevation', wind: 'Wind', heat: 'Heat & humidity' };
+const LAYER_NAMES = { total: 'Total', grade: 'Elevation', wind: 'Wind', heat: 'Heat & humidity', effort: 'Your effort' };
 
 // Two modes share the whole results engine. Internally S.goalSec / S.v0 are always the flat,
 // ideal-conditions time and speed: the goal in plan mode, the solved equivalent in evaluate mode.
@@ -99,6 +100,14 @@ $('demo-btn').addEventListener('click', async () => {
   } catch (ex) { showFormError(ex.message); }
 });
 
+$('demo-run-btn').addEventListener('click', async () => {
+  try {
+    const res = await fetch('./demo/demo-run.gpx');
+    if (!res.ok) throw new Error('Could not load the demo recorded run.');
+    setGpx(await res.text(), 'demo-run.gpx');
+  } catch (ex) { showFormError(ex.message); }
+});
+
 async function loadFile(file) {
   setGpx(await file.text(), file.name);
 }
@@ -122,8 +131,79 @@ function setGpx(text, fileName) {
   dz.querySelector('.dz-loaded').hidden = false;
   $('dz-filename').textContent = fileName;
   drawSpark(pts, gpx.eleCoverage);
+  setupRecording(gpx);
   updateInputHints();
 }
+
+// ---------- recorded runs (GPX timestamps) ----------
+// The toggle appears only when the file passes the timestamp check (gpx.timestamps.ok). Turning it on
+// switches to evaluate mode and fills the date, start time and finish time from the recording (locked);
+// turning it off restores the previous values.
+const LOCKABLE = ['race-date', 'start-time', 'goal-time', 'goal-h', 'goal-m', 'goal-s'];
+function setupRecording(gpx) {
+  if (input.rec?.on) setRecordedOn(false);
+  const info = gpx.timestamps;
+  const rec = { info, tz: null, tzError: false, on: false, prev: null, tzPromise: null };
+  input.rec = rec;
+  $('use-recorded').checked = false;
+  $('recorded-box').hidden = !info.ok;
+  const un = $('recorded-unusable');
+  un.hidden = info.ok || info.reason === 'no timestamps';
+  if (!un.hidden) un.textContent = `This file has timestamps, but they can't be used as a recorded run (${info.reason}).`;
+  if (!info.ok) return;
+  const n = gpx.points.length;
+  const lat = gpx.points.reduce((a, p) => a + p.lat, 0) / n, lon = gpx.points.reduce((a, p) => a + p.lon, 0) / n;
+  rec.tzPromise = getTimezone(lat, lon)
+    .then(tz => { rec.tz = tz; return tz; })
+    .catch(() => { rec.tzError = true; return null; })
+    .finally(() => { if (input.rec === rec) updateRecordedSummary(); });
+  updateRecordedSummary();
+}
+function updateRecordedSummary() {
+  const r = input.rec, i = r.info;
+  const el = `${formatDuration(i.elapsedSec, { forceHours: true })} elapsed`;
+  let text;
+  if (r.tz) {
+    const d = new Date(`${utcToLocal(i.startMs, r.tz)}:00`);
+    text = `Recorded ${d.toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' })}, started ${d.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' })} local · ${el}`;
+  } else if (r.tzError) {
+    text = `Recorded run · ${el}. The local start time couldn't be looked up, so this option is unavailable right now.`;
+  } else {
+    text = `Recorded run · ${el} · looking up the local start time…`;
+  }
+  $('recorded-summary').textContent = text;
+  $('use-recorded').disabled = r.tzError;
+}
+async function setRecordedOn(on) {
+  const r = input.rec;
+  if (!r?.info.ok) return;
+  if (on) {
+    const tz = r.tz ?? await r.tzPromise;
+    if (!tz) { $('use-recorded').checked = false; return; }
+    r.prev = { mode, date: $('race-date').value, time: $('start-time').value, goal: $('goal-time').value };
+    r.on = true;
+    setMode('evaluate');
+    const local = utcToLocal(r.info.startMs, tz);
+    $('race-date').value = local.slice(0, 10);
+    $('start-time').value = local.slice(11, 16);
+    $('goal-time').value = formatDuration(Math.round(r.info.elapsedSec), { forceHours: true });
+  } else {
+    r.on = false;
+    if (r.prev) {
+      $('race-date').value = r.prev.date;
+      $('start-time').value = r.prev.time;
+      $('goal-time').value = r.prev.goal;
+      setMode(r.prev.mode);
+    }
+  }
+  $('use-recorded').checked = on;
+  LOCKABLE.forEach(id => { $(id).readOnly = on; $(id).removeAttribute('aria-invalid'); });
+  $('mode').querySelector('[data-mode="plan"]').disabled = on;
+  if (isTouch()) setGoalParts($('goal-time').value);
+  hideFormError();
+  updateInputHints();
+}
+$('use-recorded').addEventListener('change', e => setRecordedOn(e.target.checked));
 $('race-name-input').addEventListener('input', () => { input.nameAuto = false; });
 
 function drawSpark(pts, coverage) {
@@ -148,7 +228,10 @@ function updateInputHints() {
   }
   const goal = parseDuration($('goal-time').value);
   const hint = $('goal-hint');
-  if (goal > 0 && p) {
+  if (input.rec?.on) {
+    hint.textContent = 'From your recording: elapsed time from first to last point, including any stops.';
+    hint.classList.add('ok');
+  } else if (goal > 0 && p) {
     hint.textContent = MODE_TEXT[mode].hintAvg(formatPaceSec(goal / p.distance * unitM(units), units));
     hint.classList.add('ok');
   } else {
@@ -241,6 +324,7 @@ function applyMode() {
 }
 function setMode(m) {
   if (m === mode) return;
+  if (m === 'plan' && input.rec?.on) return; // a recorded run is always an evaluation
   mode = m;
   save('mode', m);
   hideFormError();
@@ -284,6 +368,7 @@ function recompute() {
   S.v0 = S.mode === 'evaluate' ? solveFlatSpeed(S.windows, S.enteredSec, S.toggles) : dist / S.enteredSec;
   S.goalSec = dist / S.v0;
   S.result = computeAll(S.windows, S.v0, S.toggles);
+  S.rec = S.recorded ? analyseRecording(S.windows, S.course.points, S.toggles) : null;
 }
 
 $('input-form').addEventListener('submit', async e => {
@@ -303,7 +388,8 @@ $('input-form').addEventListener('submit', async e => {
     if (isTouch()) GOAL_PARTS.forEach(id => $(id).setAttribute('aria-invalid', 'true'));
   }
   if (problems.length) { showFormError(`Please ${problems.join(', ')}.`); return; }
-  save('inputs', { date, time, goal: $('goal-time').value });
+  // Remember the inputs for next time, but not values taken from a recording
+  if (!input.rec?.on) save('inputs', { date, time, goal: $('goal-time').value });
 
   const btn = $('submit');
   btn.disabled = true;
@@ -318,6 +404,7 @@ $('input-form').addEventListener('submit', async e => {
     const hills = hillSegments(baseWindows);
     const startLocal = `${date}T${time}`;
     const runMode = mode;
+    const recorded = !!input.rec?.on;
     setProgress('weather');
     const [weather, place] = await Promise.all([
       getRaceWeather({ lat: course.centroid.lat, lon: course.centroid.lon, startLocal, durationSec: goalSec }),
@@ -325,16 +412,19 @@ $('input-form').addEventListener('submit', async e => {
     ]);
     setProgress('model');
     await new Promise(r => setTimeout(r, 0));
-    // The entered time's average pace places the hourly weather (plan: goal pace; evaluate: actual pace)
-    const windows = attachWeather(baseWindows, course.distance / goalSec, weather.hours, startLocal);
+    // Hourly weather placement: plan → goal pace; evaluate → the entered time's average pace;
+    // recorded run → the actual time you reached each stretch
+    const t0 = course.points[0].t;
+    const pace = recorded ? w => (course.points[Math.round((w.i0 + w.i1) / 2)].t - t0) / 1000 : course.distance / goalSec;
+    const windows = attachWeather(baseWindows, pace, weather.hours, startLocal);
     let gain = 0, loss = 0;
     windows.forEach(w => { const dz = w.ele1 - w.ele0; if (dz > 0) gain += dz; else loss -= dz; });
     S = {
-      mode: runMode, course, prof, windows, hills, weather, place, startLocal, gain, loss,
+      mode: runMode, recorded, course, prof, windows, hills, weather, place, startLocal, gain, loss,
       enteredSec: goalSec,
       name: $('race-name-input').value.trim() || course.name || input.fileName.replace(/\.gpx$/i, ''),
       toggles: { grade: true, wind: true, heat: true },
-      splitMode: units, layer: 'total', selected: null, hovered: null
+      splitMode: units, layer: recorded ? 'effort' : 'total', selected: null, hovered: null
     };
     recompute();
     showResults();
@@ -353,6 +443,7 @@ function showResults() {
   $('results-view').hidden = false;
   window.scrollTo({ top: 0 });
   if (!map) initResultViews();
+  $('layer-effort').hidden = !S.recorded;
   syncSeg('layer', 'l', S.layer, 'aria-checked');
   syncSeg('split-mode', 'm', S.splitMode, 'aria-checked');
   document.querySelectorAll('.factor').forEach(b => b.setAttribute('aria-pressed', String(S.toggles[b.dataset.f])));
@@ -470,14 +561,17 @@ function renderResults() {
 }
 
 function deltasFor(layer) {
-  const run = S.result.runs[layer], u = unitM(units);
+  const u = unitM(units);
+  // Your effort: flat-equivalent pace of each stretch vs your overall flat equivalent (NaN = stopped)
+  if (layer === 'effort') return S.windows.map((_, i) => u * (1 / S.rec.flatSpeeds[i] - 1 / S.v0));
+  const run = S.result.runs[layer];
   return S.windows.map((_, i) => u * (1 / run.speeds[i] - 1 / S.v0));
 }
 
 function renderHeader() {
   const { course, weather, place, startLocal, gain, loss } = S;
   $('race-title').textContent = S.name;
-  $('race-mode').textContent = T().pill;
+  $('race-mode').textContent = S.recorded ? 'Recorded run' : T().pill;
   const when = new Date(`${startLocal}:00`);
   const src = { forecast: 'Forecast weather', archive: 'Recorded weather', climatology: '3-year weather average' }[weather.source];
   const tz = (() => {
@@ -557,9 +651,10 @@ function renderLayer() {
       const head = hw.filter(x => x > 0.3).length / hw.length, tail = hw.filter(x => x < -0.3).length / hw.length;
       return `Bars show the effect of wind alone: ${Math.round(head * 100)}% of the course is into a headwind and ${Math.round(tail * 100)}% has a tailwind.`;
     })(),
-    heat: 'Bars show the effect of temperature and humidity alone, stepping hour by hour from the start.'
+    heat: 'Bars show the effect of temperature and humidity alone, stepping hour by hour from the start.',
+    effort: 'Bars show your flat-equivalent pace on each stretch against your overall flat equivalent: blue where you pushed harder than average, red where you eased off. Stops are left out.'
   };
-  const excluded = S.layer !== 'total' && !S.toggles[S.layer] ? ` ${LAYER_NAMES[S.layer]} is currently excluded from your ${S.mode === 'evaluate' ? 'equivalent' : 'plan'}.` : '';
+  const excluded = S.layer in S.toggles && !S.toggles[S.layer] ? ` ${LAYER_NAMES[S.layer]} is currently excluded from your ${S.mode === 'evaluate' ? 'equivalent' : 'plan'}.` : '';
   $('profile-note').textContent = `${LAYER_NAMES[S.layer]} · hover, tap or use ← → to explore`;
   $('profile-sub').textContent = `${notes[S.layer]}${excluded}${S.splitMode === 'hill' ? ' Shaded bands mark the hill segments.' : ''}`;
   applyHighlightState();
@@ -588,10 +683,25 @@ function splitRunRows(layer) {
 }
 function paceUnit() { return S.splitMode === 'hill' ? units : S.splitMode; }
 
+// Recorded runs: flat-equivalent time over moving stretches whose midpoint lies in [d0, d1)
+function flatOver(d0, d1) {
+  let len = 0, time = 0;
+  S.windows.forEach((w, i) => {
+    const m = (w.d0 + w.d1) / 2, v = S.rec.flatSpeeds[i];
+    if (m >= d0 && m < d1 && Number.isFinite(v)) { len += w.length; time += w.length / v; }
+  });
+  return { len, time };
+}
+function recordedRun() { return { cum: S.rec.cum, total: S.rec.total }; }
+
 function buildSplitRows() {
   const { course, windows, hills, splitMode, result, goalSec } = S;
   const pu = paceUnit(), u = unitM(pu);
-  const rows = splitRunRows('total');
+  // Recorded: your actual splits, ± against an even effort. Otherwise: the model's even-effort splits.
+  const actual = S.recorded ? recordedRun() : result.runs.total;
+  const ref = S.recorded ? result.runs.total : result.runs.base;
+  const rows = makeSplits(windows, actual, ref, splitBoundaries(splitMode, windows, hills));
+  const flatPace = (d0, d1) => { const f = flatOver(d0, d1); return f.len > 0 ? formatDuration(f.time / f.len * u) : '—'; };
   const out = [];
   const half = course.distance / 2;
   let halfDone = splitMode === 'hill' || course.distance < 30000;
@@ -611,31 +721,38 @@ function buildSplitRows() {
       index: i, label, sub, kind, d0: r.d0, d1: r.d1,
       time: formatDuration(r.time), pace: formatDuration(splitPace(r, pu)), paceDelta: formatDelta(pd), paceDeltaSec: pd,
       cum: formatDuration(r.cum, { forceHours: true }), cumDelta: formatDelta(r.cumDelta), cumDeltaSec: r.cumDelta,
+      extra: S.recorded ? flatPace(r.d0, r.d1) : null,
       raw: r
     });
     if (!halfDone && r.d1 >= half - 1) {
       halfDone = true;
-      const th = timeAt(windows, result.runs.total.cum, half), bh = timeAt(windows, result.runs.base.cum, half);
-      out.push({ summary: true, label: 'Half', time: '', pace: formatDuration(th / half * u), paceDelta: formatDelta((th - bh) / half * u), paceDeltaSec: (th - bh) / half * u, cum: formatDuration(th, { forceHours: true }), cumDelta: formatDelta(th - bh), cumDeltaSec: th - bh });
+      const th = timeAt(windows, actual.cum, half), bh = timeAt(windows, ref.cum, half);
+      out.push({ summary: true, label: 'Half', time: '', pace: formatDuration(th / half * u), paceDelta: formatDelta((th - bh) / half * u), paceDeltaSec: (th - bh) / half * u, cum: formatDuration(th, { forceHours: true }), cumDelta: formatDelta(th - bh), cumDeltaSec: th - bh, extra: S.recorded ? flatPace(0, half) : null });
     }
   });
-  const tot = result.runs.total.total, dt = tot - goalSec;
-  out.push({ summary: true, label: 'Finish', time: '', pace: formatDuration(tot / course.distance * u), paceDelta: formatDelta(dt / course.distance * u), paceDeltaSec: dt / course.distance * u, cum: formatDuration(tot, { forceHours: true }), cumDelta: formatDelta(dt), cumDeltaSec: dt });
+  const tot = actual.total, dt = tot - (S.recorded ? ref.total : goalSec);
+  out.push({ summary: true, label: 'Finish', time: '', pace: formatDuration(tot / course.distance * u), paceDelta: formatDelta(dt / course.distance * u), paceDeltaSec: dt / course.distance * u, cum: formatDuration(tot, { forceHours: true }), cumDelta: formatDelta(dt), cumDeltaSec: dt, extra: S.recorded ? flatPace(0, Infinity) : null });
   return out;
 }
 
 function renderSplits() {
   S.rows = buildSplitRows();
   const splitRows = S.rows.filter(r => !r.summary);
-  S.layerRows = splitRunRows(S.layer);
+  // Effort layer: seconds each split's flat-equivalent time differs from your overall flat equivalent
+  S.layerRows = S.layer === 'effort'
+    ? splitRows.map(r => { const f = flatOver(r.d0, r.d1); return { delta: f.time - f.len / S.v0 }; })
+    : splitRunRows(S.layer);
   splitChart.set({
     values: S.layerRows.map(r => r.delta),
     labels: S.splitMode === 'hill' ? splitRows.map((_, i) => String(i + 1)) : splitRows.map(r => r.label.split(' ')[0]),
     active: S.hovered ?? S.selected
   });
   const desc = S.splitMode === 'hill' ? `${S.hills.length} terrain-based segments` : `${S.splitMode === 'mi' ? 'Mile' : 'Kilometre'} splits`;
-  $('splits-sub').textContent = `${S.mode === 'evaluate' ? 'Estimated even-effort splits for your time. ' : ''}${desc}. Bars show time gained or lost per split (${LAYER_NAMES[S.layer].toLowerCase()}). Hover to see a split on the map and profile; click to zoom to it.`;
-  renderSplitTable($('split-table'), S.rows, { firstHeader: S.splitMode === 'hill' ? 'Segment' : 'Distance', unit: paceUnit() });
+  const lead = S.recorded
+    ? 'Your actual splits from the recording; ± compares each with an even effort on this course, and Flat equiv. is what the split was worth on a flat course in ideal conditions. '
+    : S.mode === 'evaluate' ? 'Estimated even-effort splits for your time. ' : '';
+  $('splits-sub').textContent = `${lead}${desc}. Bars show time gained or lost per split (${LAYER_NAMES[S.layer].toLowerCase()}). Hover to see a split on the map and profile; click to zoom to it.`;
+  renderSplitTable($('split-table'), S.rows, { firstHeader: S.splitMode === 'hill' ? 'Segment' : 'Distance', unit: paceUnit(), extraHeader: S.recorded ? `Flat equiv. /${paceUnit()}` : null });
   applyHighlightState();
 }
 
@@ -648,7 +765,10 @@ function hoverSplit(i, ev, source) {
   const html = `<div class="tt-title">${esc(r.label)}</div>${r.sub ? `<div class="note">${esc(r.sub)}</div>` : ''}
     ${ttRow('Split', esc(r.time))}
     ${ttRow(`Pace /${paceUnit()}`, `${esc(r.pace)} (${esc(r.paceDelta)})`)}
-    ${S.layer !== 'total' ? ttRow(`${LAYER_NAMES[S.layer]} alone`, esc(formatDelta(lr.delta))) : ttRow(T().vsWord, esc(formatDelta(r.raw.delta)))}
+    ${S.recorded ? ttRow(`Flat equiv. /${paceUnit()}`, esc(r.extra ?? '—')) : ''}
+    ${S.layer === 'effort' ? ttRow('vs your average', esc(formatDelta(lr.delta)))
+      : S.layer !== 'total' ? ttRow(`${LAYER_NAMES[S.layer]} alone`, esc(formatDelta(lr.delta)))
+      : ttRow(S.recorded ? 'vs even effort' : T().vsWord, esc(formatDelta(r.raw.delta)))}
     ${ttRow('Elapsed', esc(r.cum))}`;
   showTooltip(html, ev.clientX, ev.clientY);
 }
@@ -700,9 +820,12 @@ function focusAt(d, ev) {
   const windDesc = w.wx.windMs < 0.5 ? 'calm' : Math.abs(ang) <= 45 ? 'headwind' : Math.abs(ang) >= 135 ? 'tailwind' : 'crosswind';
   const windSpd = units === 'mi' ? `${(w.wx.windMs * 2.23694).toFixed(0)} mph` : `${(w.wx.windMs * 3.6).toFixed(0)} km/h`;
   const temp = units === 'mi' ? `${Math.round(w.wx.tempC * 9 / 5 + 32)}°F` : `${Math.round(w.wx.tempC)}°C`;
-  const elapsed = timeAt(S.windows, plan.cum, d);
+  const elapsed = timeAt(S.windows, S.recorded ? S.rec.cum : plan.cum, d);
   const f = run => `<span class="${S.toggles[run] ? deltaClass(raw(run)) : ''}">${formatDelta(raw(run))}</span>${S.toggles[run] ? '' : ' · off'}`;
   const html = `<div class="tt-title">${(d / u).toFixed(2)} ${units} · ${formatDuration(elapsed, { forceHours: true })} elapsed</div>
+    ${S.recorded ? (S.rec.stopped[k]
+      ? ttRow('Your pace', 'stopped')
+      : ttRow('Your pace', formatPaceSec(u / S.rec.smoothSpeeds[k], units)) + ttRow('Flat equiv.', `${formatPaceSec(u / S.rec.flatSpeeds[k], units)} <span class="${deltaClass(u * (1 / S.rec.flatSpeeds[k] - 1 / S.v0))}">(${formatDelta(u * (1 / S.rec.flatSpeeds[k] - 1 / S.v0))})</span>`)) : ''}
     ${ttRow(T().paceWord, `${formatPaceSec(u / plan.speeds[k], units)} <span class="${deltaClass(planDelta)}">(${formatDelta(planDelta)})</span>`)}
     <div class="tt-sep">This 100 m stretch</div>
     ${ttRow('Elevation', `${Math.round(ele)} ${eleUnit(units)} · ${w.grade >= 0 ? '+' : '−'}${Math.abs(w.grade * 100).toFixed(1)}%`)}
@@ -761,30 +884,36 @@ function renderMethod() {
       A spike filter replaced ${prof.spikesReplaced} points, then a Savitzky–Golay filter (${prof.windowM} m window) smoothed the profile${prof.windowM > 150 ? '. The wider window was used because the GPX elevation looked noisy' : ''}.</p>
     <p><b>Segments.</b> Paces are calculated on ${windows.length} stretches of about ${WINDOW_M} m, each with its own grade and heading.
       For the hill-segment view these are grouped into ${hills.length} segments, with hills found relative to this course's own terrain.</p>
+    ${S.recorded ? `<p><b>Recorded run.</b> Your splits, the elapsed times and the "Your effort" view come from the file's timestamps, with GPS noise smoothed over ±${PACE_SMOOTH_M} m. Stretches slower than ${formatPaceSec(unitM(units) / STOP_SPEED, units)} count as stops: they stay in your elapsed time but are left out of the effort analysis. The headline equivalent still assumes an even effort, so it compares fairly with plan mode; the Flat equiv. column comes from how you actually paced it, so its average can differ from the headline by a few seconds per mile.</p>` : ''}
     ${S.mode === 'evaluate' ? `<p><b>Evaluate mode.</b> The app finds the flat, ideal-conditions time whose adjusted time on this course matches yours, assuming an even effort. The splits show how that even effort would have split on this course; compare them with your watch splits.</p>` : ''}
     <p><b>Adjustments</b> are applied in the order grade → wind → heat, each keeping the effort of the flat-ground pace in calm, cool air.
       Grade uses Minetti (2002) and the Black et al. (2018) running-cost data, with descents steeper than ${Math.round(DOWNHILL_CAP_GRADE * 100)}% given no extra benefit.
       Wind uses an aerodynamic drag model, with wind measured at 10 m and scaled to chest height (α = ${WIND_ALPHA}), for a ${RUNNER_KG} kg runner.
       Heat uses a temperature and humidity model fit to marathon results (Mantzios et al. 2022); applying it hour by hour is an approximation.
-      Each hour's weather is assigned using elapsed time at your ${S.mode === 'evaluate' ? 'actual average' : 'goal'} pace. The pace plan is then smoothed over ±${PACE_SMOOTH_M} m, which leaves the finish time unchanged.</p>
+      Each hour's weather is assigned using ${S.recorded ? 'the times in your recording' : `elapsed time at your ${S.mode === 'evaluate' ? 'actual average' : 'goal'} pace`}. The pace plan is then smoothed over ±${PACE_SMOOTH_M} m, which leaves the finish time unchanged.</p>
     <p><b>Credits.</b> Models adapted from John J. Davis's <a href="https://apps.runningwritings.com/" target="_blank" rel="noopener">Running Writings</a> calculators (MIT license).
       Weather by <a href="https://open-meteo.com/" target="_blank" rel="noopener">Open-Meteo.com</a> (CC BY 4.0). Map tiles © OpenStreetMap contributors${BASEMAP_PROVIDER === 'carto' ? ', © CARTO' : ''}. Elevation: Mapzen / AWS Terrain Tiles. Place names: Nominatim.</p>`;
-  $('warnings').innerHTML = result.warnings.map(w => `<li>${esc(w)}</li>`).join('');
-  $('warnings').hidden = !result.warnings.length;
+  const notes = [...result.warnings];
+  if (S.recorded && S.rec.stoppedCount) {
+    notes.unshift(`Your recording includes ${S.rec.stoppedCount} stopped or very slow ${S.rec.stoppedCount === 1 ? 'stretch' : 'stretches'} (${formatDuration(S.rec.stoppedSec)} in total). That time counts toward your elapsed time but is left out of the effort analysis.`);
+  }
+  $('warnings').innerHTML = notes.map(w => `<li>${esc(w)}</li>`).join('');
+  $('warnings').hidden = !notes.length;
 }
 
 // ---------------------------------------------------------------- CSV
 function exportCsv() {
   if (!S) return;
   const pu = paceUnit();
-  const header = [S.splitMode === 'hill' ? 'Segment' : 'Distance', 'Detail', `From (${units})`, `To (${units})`, 'Split time', `Pace /${pu}`, `Pace ${T().csvVs}`, 'Elapsed', `Elapsed ${T().csvVs}`];
+  const vs = S.recorded ? 'vs even effort' : T().csvVs;
+  const header = [S.splitMode === 'hill' ? 'Segment' : 'Distance', 'Detail', `From (${units})`, `To (${units})`, 'Split time', `Pace /${pu}`, `Pace ${vs}`, ...(S.recorded ? [`Flat equiv. /${pu}`] : []), 'Elapsed', `Elapsed ${vs}`];
   const ascii = s => (s ?? '').replace(/−/g, '-').replace(/–/g, '-');
   const rows = S.rows.map(r => [
     ascii(r.label), ascii(r.sub), r.summary ? '' : (r.d0 / unitM(units)).toFixed(2), r.summary ? '' : (r.d1 / unitM(units)).toFixed(2),
-    r.time, r.pace, ascii(r.paceDelta), r.cum, ascii(r.cumDelta)
+    r.time, r.pace, ascii(r.paceDelta), ...(S.recorded ? [r.extra ?? ''] : []), r.cum, ascii(r.cumDelta)
   ]);
   const safe = S.name.replace(/[^\w\- ]+/g, '').trim().replace(/\s+/g, '-') || 'race';
-  downloadCsv(`${safe}-${S.mode === 'evaluate' ? 'evaluation' : 'plan'}-${S.splitMode}-splits.csv`, header, rows);
+  downloadCsv(`${safe}-${S.recorded ? 'recorded' : S.mode === 'evaluate' ? 'evaluation' : 'plan'}-${S.splitMode}-splits.csv`, header, rows);
 }
 
 // Read-only hook for debugging in the console

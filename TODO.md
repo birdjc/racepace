@@ -64,7 +64,8 @@
 - [x] Mobile fixes (2026-10-02): touch devices (`pointer: coarse`) get no file-type filter (iOS greys out .gpx; contents still checked) and three h/min/sec goal boxes; desktop keeps the .gpx filter and one h:mm:ss box. Date/time inputs fit narrow screens (iOS min-width). Touch map pans only after a tap (no scroll trap); tapping elsewhere closes tooltips. Charts render without waiting for ResizeObserver
 - [x] User re-tested on iPhone (2026-10-03: "looks good")
 - [x] **Evaluate mode (reverse conversion), 2026-10-03**: input mode switch ("Plan a race" / "Evaluate a result", name may change); solves for the flat-equivalent time with `solveFlatSpeed` (exact inverse of plan mode, round-trip tests); weather timed by the actual average pace; results reuse the whole engine with evaluate wording; gauge renamed "Course difficulty" in this mode; splits = estimated even-effort splits; factor toggles re-solve (busy state while updating)
-- [ ] Later (decision 5, on hold): use GPX timestamps to auto-fill start/finish and analyse actual pacing
+- [x] **Recorded runs (decision 5), 2026-10-05**: toggle appears only when the GPX passes the timestamp check (≥ 90% timed points, in order, 1 min–48 h); fills and locks date/start/finish (elapsed, incl. stops) and forces evaluate mode; off restores previous values. Results: actual splits ± vs even effort, Flat equiv. column, "Your effort" layer (per-stretch flat equivalent vs headline), stop detection (near-stationary or < 60% of median effort), weather placed by recorded times. Demo recording in public/demo/demo-run.gpx (scripts/make-demo-run.mjs)
+- Note: per-split Flat equiv. (actual pacing) can differ by a few s/mi from the headline (even-effort assumption); explained in the Method section
 
 ## Open questions / notes
 - The heat model is fit to whole marathons; applying it hourly is an approximation (see FORMULAS.md)

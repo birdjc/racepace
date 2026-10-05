@@ -67,7 +67,18 @@
               <span class="dz-hint">Click or drop to replace</span>
             </span>
           </label>
-          <p class="field-hint">No GPX handy? <button type="button" class="link-btn" id="demo-btn">Use the demo course</button> (a synthetic route near Boston).</p>
+          <p class="field-hint">No GPX handy? Try the <button type="button" class="link-btn" id="demo-btn">demo course</button> or a <button type="button" class="link-btn" id="demo-run-btn">demo recorded run</button> (synthetic, near Boston).</p>
+          <div class="recorded" id="recorded-box" hidden>
+            <label class="toggle-row">
+              <input type="checkbox" id="use-recorded" class="visually-hidden" role="switch" />
+              <span class="switch" aria-hidden="true"></span>
+              <span class="toggle-text">
+                <span class="toggle-title">Use the run recorded in this file</span>
+                <span class="field-hint" id="recorded-summary"></span>
+              </span>
+            </label>
+          </div>
+          <p class="field-hint" id="recorded-unusable" hidden></p>
         </fieldset>
 
         <fieldset class="step">
@@ -178,7 +189,7 @@
         <div class="card-head">
           <h2 id="course-title">Course</h2>
           <div class="seg" id="layer" role="radiogroup" aria-label="Show pace change from">
-            <button type="button" role="radio" data-l="total" aria-checked="true">Total</button><button type="button" role="radio" data-l="grade" aria-checked="false">Elevation</button><button type="button" role="radio" data-l="wind" aria-checked="false">Wind</button><button type="button" role="radio" data-l="heat" aria-checked="false">Heat</button>
+            <button type="button" role="radio" data-l="total" aria-checked="true">Total</button><button type="button" role="radio" data-l="grade" aria-checked="false">Elevation</button><button type="button" role="radio" data-l="wind" aria-checked="false">Wind</button><button type="button" role="radio" data-l="heat" aria-checked="false">Heat</button><button type="button" role="radio" data-l="effort" aria-checked="false" id="layer-effort" hidden>Your effort</button>
           </div>
         </div>
         <div class="map-wrap">

@@ -43,6 +43,8 @@ export function resample(points, spacing = 10) {
   const n = Math.max(2, Math.round(total / spacing) + 1);
   const step = total / (n - 1);
   const ele = fillNaN(pts.map(p => p.ele));
+  // Timestamps (if any) are interpolated the same way; NaN everywhere when the file has none
+  const tms = fillNaN(pts.map(p => (Number.isFinite(p.t) ? p.t : NaN)));
   const out = [];
   let j = 0;
   for (let i = 0; i < n; i++) {
@@ -54,7 +56,8 @@ export function resample(points, spacing = 10) {
       d,
       lat: a.lat + (b.lat - a.lat) * t,
       lon: a.lon + (b.lon - a.lon) * t,
-      ele: ele[j] + (ele[j + 1] - ele[j]) * t
+      ele: ele[j] + (ele[j + 1] - ele[j]) * t,
+      t: tms[j] + (tms[j + 1] - tms[j]) * t
     });
   }
   return out;

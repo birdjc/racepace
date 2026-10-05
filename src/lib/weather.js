@@ -149,3 +149,13 @@ export function weatherForElapsed(hours, startLocal, elapsedSec) {
     windFromDeg: (a.windFromDeg + dd * f + 360) % 360
   };
 }
+
+// IANA time zone at a location (e.g. "America/New_York"), used to show a recorded run's UTC start
+// time as local time at the course. One tiny Open-Meteo request; no key.
+export async function getTimezone(lat, lon, fetchFn = fetch) {
+  const q = new URLSearchParams({ latitude: lat.toFixed(4), longitude: lon.toFixed(4), timezone: 'auto', forecast_days: '1', current: 'temperature_2m' });
+  const res = await fetchFn(`${FORECAST_URL}?${q}`);
+  const body = await res.json();
+  if (!res.ok || !body.timezone) throw new Error('Could not look up the time zone for this course.');
+  return body.timezone;
+}

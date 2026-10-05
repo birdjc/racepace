@@ -72,14 +72,16 @@ export class SplitChart {
   }
 }
 
-// rows: [{ label, sub, kind, time, pace, paceDelta, cum, cumDelta, summary }]
-export function renderSplitTable(table, rows, { firstHeader, unit }) {
+// rows: [{ label, sub, kind, time, pace, paceDelta, cum, cumDelta, summary, extra }]
+// extraHeader (optional) adds a column after Pace, filled from row.extra (recorded runs: flat equiv.)
+export function renderSplitTable(table, rows, { firstHeader, unit, extraHeader = null }) {
   const d = (sec, txt) => `<span class="d ${sec > 0.5 ? 'slow' : sec < -0.5 ? 'fast' : ''}">${esc(txt)}</span>`;
-  table.innerHTML = `<thead><tr><th scope="col">${esc(firstHeader)}</th><th scope="col">Split</th><th scope="col">Pace /${esc(unit)}</th><th scope="col">Elapsed</th></tr></thead>
-    <tbody>${rows.map((r, i) => `<tr ${r.summary ? 'class="summary-row"' : `data-i="${r.index}" tabindex="0"`}>
+  table.innerHTML = `<thead><tr><th scope="col">${esc(firstHeader)}</th><th scope="col">Split</th><th scope="col">Pace /${esc(unit)}</th>${extraHeader ? `<th scope="col">${esc(extraHeader)}</th>` : ''}<th scope="col">Elapsed</th></tr></thead>
+    <tbody>${rows.map(r => `<tr ${r.summary ? 'class="summary-row"' : `data-i="${r.index}" tabindex="0"`}>
       <td>${r.kind ? `<span class="kind-dot ${r.kind}"></span>` : ''}${esc(r.label)}${r.sub ? `<span class="kind">${esc(r.sub)}</span>` : ''}</td>
       <td>${esc(r.time)}</td>
       <td>${esc(r.pace)}${d(r.paceDeltaSec, r.paceDelta)}</td>
+      ${extraHeader ? `<td>${esc(r.extra ?? '—')}</td>` : ''}
       <td>${esc(r.cum)}${d(r.cumDeltaSec, r.cumDelta)}</td>
     </tr>`).join('')}</tbody>`;
 }

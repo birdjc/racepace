@@ -6,6 +6,9 @@ Upload a GPX course and a start date and time, then choose a mode:
   **grade**, **wind** and **heat/humidity**.
 - **Evaluate a result:** enter a finish time on that course and see what it is worth on a flat
   course in ideal conditions. Works for past races (recorded weather) and future ones.
+- **Recorded runs:** if the GPX comes from a watch (timestamps on the points), a toggle fills in the
+  date, start time and finish time from the file and shows your actual splits, each split's flat
+  equivalent, stops, and a "Your effort" map/profile view. A demo recording is included.
 
 Both use John J. Davis's Running Writings models.
 
@@ -60,6 +63,11 @@ build works on any static host:
 6. **Evaluate mode** searches for the flat, ideal-conditions time whose adjusted time on the course
    equals the entered time (assuming an even effort), so it is the exact inverse of plan mode. The
    hourly weather is placed using the entered time's average pace.
+7. **Recorded runs** convert each 100 m stretch's actual pace to its flat equivalent (undoing heat, wind
+   and grade with the models' pace direction), then smooth that effort over ±200 m. Stretches that are
+   near-stationary or below 60% of your median effort count as stops; their time stays in the elapsed
+   total but is left out of the effort view. Weather is placed by your recorded times. GPX times are
+   UTC; the start is shown in the course's local time zone (looked up via Open-Meteo).
 
 Formula details are in [`formulas/FORMULAS.md`](formulas/FORMULAS.md).
 
