@@ -12,7 +12,7 @@ export class SplitChart {
       const i = this.indexAt(e);
       if (i !== null) this.onHover?.(i, e); else this.onLeave?.();
     });
-    el.addEventListener('pointerleave', () => this.onLeave?.());
+    el.addEventListener('pointerleave', e => { if (e.pointerType !== 'touch') this.onLeave?.(); });
     el.addEventListener('click', e => { const i = this.indexAt(e); if (i !== null) this.onSelect?.(i); });
   }
 

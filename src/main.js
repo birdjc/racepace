@@ -470,7 +470,7 @@ function initResultViews() {
   });
   const tbl = $('split-table');
   tbl.addEventListener('pointerover', e => { const tr = e.target.closest('tr[data-i]'); if (tr) hoverSplit(Number(tr.dataset.i), e, 'table'); });
-  tbl.addEventListener('pointerleave', () => hoverSplit(null));
+  tbl.addEventListener('pointerleave', e => { if (e.pointerType !== 'touch') hoverSplit(null); });
   tbl.addEventListener('click', e => { const tr = e.target.closest('tr[data-i]'); if (tr) selectSplit(Number(tr.dataset.i)); });
   tbl.addEventListener('keydown', e => {
     const tr = e.target.closest('tr[data-i]');

@@ -19,7 +19,9 @@ export class ProfileChart {
     observeWidth(el, w => { this.width = w; this.render(); });
     el.addEventListener('pointermove', e => this.pointer(e));
     el.addEventListener('pointerdown', e => this.pointer(e));
-    el.addEventListener('pointerleave', () => this.onLeave?.());
+    // Touch: lifting the finger fires pointerleave right after the tap, so keep the tooltip until the
+    // user taps elsewhere (handled in main.js); mouse: hide when the pointer leaves
+    el.addEventListener('pointerleave', e => { if (e.pointerType !== 'touch') this.onLeave?.(); });
     el.addEventListener('keydown', e => this.key(e));
     el.addEventListener('blur', () => this.onLeave?.());
   }
