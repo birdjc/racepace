@@ -1,36 +1,45 @@
-// Editable target splits. An edit fixes the time for one distance range [d0, d1]. Inside it, time is
-// spread in proportion to the model's pacing there; everything outside keeps the model's times, so an
-// edit moves the finish time by exactly the change to that split and leaves every other split alone.
-// Edits are absolute times, so they hold when factors are switched on or off. They never overlap: a
-// new edit replaces any edit it overlaps (only possible after switching between mile, km and hill splits).
+// Editable effort splits. A plan starts from one flat, ideal-conditions effort pace (the goal, or in
+// evaluate mode the solved equivalent). An edit sets a different effort speed for one distance range
+// [d0, d1] (a mile, km or hill segment). Each 100 m stretch inside it is run through the models again
+// at the new effort, and its time changes by the ratio of old to new adjusted speed. The ±200 m pace
+// smoothing keeps its shape and nothing outside the range moves, so the finish changes by exactly the
+// change to that split. Edits are effort speeds (m/s), so they hold when factors are switched on or
+// off. A new edit replaces any edit it overlaps (only possible after switching mile / km / hill splits).
 import { timeAt } from './splits.js';
-import { flatEquivalentSpeed } from './adjust.js';
+import { adjustSpeed } from './adjust.js';
 
 const EPS = 0.5; // m
 
-// sec = null removes the edit for [d0, d1]
-export function addEdit(edits, d0, d1, sec) {
+// v = null removes the edit for [d0, d1]
+export function addEdit(edits, d0, d1, v) {
   const rest = edits.filter(e => e.d1 <= d0 + EPS || e.d0 >= d1 - EPS);
-  return sec == null ? rest : [...rest, { d0, d1, sec }].sort((a, b) => a.d0 - b.d0);
+  return v == null ? rest : [...rest, { d0, d1, v }].sort((a, b) => a.d0 - b.d0);
 }
 
 export const findEdit = (edits, d0, d1) =>
   edits.find(e => Math.abs(e.d0 - d0) < EPS && Math.abs(e.d1 - d1) < EPS) ?? null;
 
-// run: a runModel result. Returns the same shape plus timeAt(d), the exact elapsed time at any distance
-// (split boundaries can fall inside a 100 m window, so cum alone can't represent an edit exactly).
-export function applyEdits(windows, run, edits) {
+// The run with its time per metre multiplied by factor(i, edit) where window i overlaps an edit.
+// Returns the same shape plus timeAt(d), the exact elapsed time at any distance (split boundaries can
+// fall inside a 100 m window, so cum alone can't represent an edit exactly).
+function withFactors(windows, run, edits, factor) {
   const base = d => timeAt(windows, run.cum, d);
   if (!edits.length) return { ...run, timeAt: base };
-  const segs = edits.map(e => ({ ...e, t0: base(e.d0), t1: base(e.d1) }));
+  const pieces = []; // [a, b] with x extra seconds per metre
+  for (const e of edits) {
+    windows.forEach((w, i) => {
+      const a = Math.max(w.d0, e.d0), b = Math.min(w.d1, e.d1);
+      if (b > a) pieces.push({ a, b, x: (factor(i, e) - 1) / run.speeds[i] });
+    });
+  }
+  pieces.sort((p, q) => p.a - q.a);
   const at = d => {
-    let shift = 0;
-    for (const e of segs) {
-      if (d >= e.d1) shift += e.sec - (e.t1 - e.t0);
-      else if (d > e.d0) return e.t0 + shift + e.sec * (base(d) - e.t0) / (e.t1 - e.t0);
-      else break;
+    let t = base(d);
+    for (const p of pieces) {
+      if (d <= p.a) break;
+      t += (Math.min(d, p.b) - p.a) * p.x;
     }
-    return base(d) + shift;
+    return t;
   };
   const cum = [0, ...windows.map(w => at(w.d1))];
   const times = windows.map((_, i) => cum[i + 1] - cum[i]);
@@ -38,19 +47,10 @@ export function applyEdits(windows, run, edits) {
   return { ...run, timeAt: at, cum, times, speeds, total: cum[cum.length - 1] };
 }
 
-// What the edits are worth on a flat course in ideal conditions: for each edit, the flat-equivalent time
-// of its range at the edited pace minus at the model's pace (per 100 m stretch, weighted by overlap).
-// 0 with no edits; with every factor off it equals the change in course time.
-export function editFlatShift(windows, run, edits, on) {
-  let shift = 0;
-  for (const e of edits) {
-    const k = e.sec / (timeAt(windows, run.cum, e.d1) - timeAt(windows, run.cum, e.d0));
-    windows.forEach((w, i) => {
-      const len = Math.min(w.d1, e.d1) - Math.max(w.d0, e.d0);
-      if (len <= 0) return;
-      const flat = v => { const f = flatEquivalentSpeed(w, v, on); return len / (Number.isFinite(f) ? f : v); };
-      shift += flat(run.speeds[i] / k) - flat(run.speeds[i]);
-    });
-  }
-  return shift;
-}
+// Effort profile: the flat, ideal-conditions run (runs.base) with the edited effort speeds
+export const effortRun = (windows, base, edits) =>
+  withFactors(windows, base, edits, (i, e) => base.speeds[i] / e.v);
+
+// Course plan: the adjusted run (runs.total) with each edited stretch re-run at its new effort
+export const adjustedRun = (windows, run, edits, on) =>
+  withFactors(windows, run, edits, (i, e) => run.rawSpeeds[i] / adjustSpeed(windows[i], e.v, on));

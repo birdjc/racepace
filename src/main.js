@@ -7,7 +7,7 @@ import { smoothElevation } from './lib/profile.js';
 import { buildWindows, hillSegments, WINDOW_M } from './lib/segments.js';
 import { attachWeather, computeAll, solveFlatSpeed, pacingOpportunity, headwindComponent, WIND_ALPHA, RUNNER_KG, DOWNHILL_CAP_GRADE, PACE_SMOOTH_M } from './lib/adjust.js';
 import { makeSplits, splitBoundaries, splitPace, splitPaceDelta, timeAt, runTimeAt } from './lib/splits.js';
-import { addEdit, findEdit, applyEdits, editFlatShift } from './lib/edits.js';
+import { addEdit, findEdit, effortRun, adjustedRun } from './lib/edits.js';
 import { parseDuration, parseSplit } from './lib/pace.js';
 import { reverseGeocode } from './lib/geocode.js';
 import {
@@ -33,7 +33,7 @@ const MODE_TEXT = {
     missing: 'an expected finish time', submit: 'Build my race plan', progressModel: 'Pace adjustments',
     pill: 'Race plan', leftK: 'Goal', rightK: 'Adjusted', oppTitle: 'Pacing opportunity',
     factorsNote: 'Each card shows that factor on its own. Click a card to include or exclude it from your plan.',
-    paceWord: 'Plan pace', vsWord: 'vs goal', csvVs: 'vs goal'
+    paceWord: 'Plan pace', vsWord: 'vs effort', csvVs: 'vs effort'
   },
   evaluate: {
     title: 'See what your result is worth',
@@ -44,7 +44,7 @@ const MODE_TEXT = {
     missing: 'your finish time', submit: 'Evaluate my result', progressModel: 'Flat-course equivalent',
     pill: 'Result evaluation', leftK: 'On this course', rightK: 'Flat & ideal equivalent', oppTitle: 'Course difficulty',
     factorsNote: 'Each card shows the time that factor cost (+) or saved (−) you on its own. Click a card to include or exclude it from the equivalent.',
-    paceWord: 'Even-effort pace', vsWord: 'vs flat equiv.', csvVs: 'vs flat equivalent'
+    paceWord: 'Even-effort pace', vsWord: 'vs effort', csvVs: 'vs effort'
   }
 };
 
@@ -373,12 +373,11 @@ function recompute() {
   applyPlanEdits();
 }
 
-// Edited splits (plan and evaluate, not recorded runs). S.plan is the model's course run with the edits
-// applied; S.flatShift is what the edits are worth on a flat course in ideal conditions.
+// Edited effort splits (plan and evaluate, not recorded runs). S.effort is the flat, ideal-conditions
+// effort profile (the goal or solved pace, with any edited splits); S.plan is the course plan run from it.
 function applyPlanEdits() {
-  const run = S.result.runs.total;
-  S.plan = applyEdits(S.windows, run, S.edits);
-  S.flatShift = editFlatShift(S.windows, run, S.edits, S.toggles);
+  S.effort = effortRun(S.windows, S.result.runs.base, S.edits);
+  S.plan = adjustedRun(S.windows, S.result.runs.total, S.edits, S.toggles);
 }
 const editable = () => S && !S.recorded;
 
@@ -516,7 +515,7 @@ function commitSplit(inp, advance) {
     const sec = txt ? parseSplit(txt) : null;
     if (txt && !(sec > 0)) {
       inp.setAttribute('aria-invalid', 'true');
-      inp.title = 'Use m:ss or h:mm:ss, like 7:42 (or digits only: 742).';
+      inp.title = 'Use m:ss, like 5:50 (or digits only: 550).';
       return;
     }
     editSplit(i, sec);
@@ -527,14 +526,17 @@ function focusSplitInput(i) {
   const next = $('split-table').querySelector(`.split-input[data-i="${i}"]`);
   if (next) next.focus(); else document.activeElement?.blur();
 }
-// sec = null resets the split to the model
-function editSplit(i, sec) {
+// paceSec: new effort pace (seconds per pace unit); null resets the split to the base effort
+function editSplit(i, paceSec) {
   const r = S.rows.find(x => x.index === i);
   if (!r) return;
   const hadFocus = document.activeElement?.closest?.('#split-table');
-  S.edits = addEdit(S.edits, r.d0, r.d1, sec);
+  // Typing the base pace back in is the same as resetting
+  const v = paceSec === null ? null : unitM(paceUnit()) / paceSec;
+  const same = v !== null && Math.abs(paceSec - unitM(paceUnit()) / S.v0) < 0.5;
+  S.edits = addEdit(S.edits, r.d0, r.d1, same ? null : v);
   refreshEdits();
-  if (hadFocus && sec === null) focusSplitInput(i);
+  if (hadFocus && (paceSec === null || same)) focusSplitInput(i);
 }
 function refreshEdits() {
   applyPlanEdits();
@@ -629,7 +631,9 @@ function deltasFor(layer) {
   const u = unitM(units);
   // Your effort: flat-equivalent pace of each stretch vs your overall flat equivalent (NaN = stopped)
   if (layer === 'effort') return S.windows.map((_, i) => u * (1 / S.rec.flatSpeeds[i] - 1 / S.v0));
-  const run = layer === 'total' ? S.plan : S.result.runs[layer];
+  // Total: the plan against its own effort (edited effort splits included); single factors: vs the base effort
+  if (layer === 'total') return S.windows.map((_, i) => u * (1 / S.plan.speeds[i] - 1 / S.effort.speeds[i]));
+  const run = S.result.runs[layer];
   return S.windows.map((_, i) => u * (1 / run.speeds[i] - 1 / S.v0));
 }
 
@@ -662,8 +666,9 @@ function renderSummary() {
   const u = unitM(units), t = T();
   const courseSec = S.plan.total;
   // Plan: goal → adjusted course time. Evaluate: course time → flat, ideal equivalent.
-  // Edited splits change the course time; in evaluate mode they also shift the equivalent.
-  const [left, right] = S.mode === 'evaluate' ? [courseSec, goalSec + S.flatShift] : [goalSec, courseSec];
+  // Edited effort splits change both the effort total and the course time
+  const effortSec = S.effort.total;
+  const [left, right] = S.mode === 'evaluate' ? [courseSec, effortSec] : [effortSec, courseSec];
   const d = right - left;
   $('finish-left-k').textContent = t.leftK;
   $('finish-right-k').textContent = t.rightK;
@@ -703,16 +708,18 @@ function renderSummary() {
 function editSummary() {
   const n = S.edits.length;
   const courseDelta = S.plan.total - S.result.runs.total.total;
-  return { n, courseDelta, what: `${n} edited ${n === 1 ? 'split' : 'splits'}` };
+  const effortDelta = S.effort.total - S.goalSec;
+  return { n, courseDelta, effortDelta, what: `${n} edited effort ${n === 1 ? 'split' : 'splits'}` };
 }
 function renderEditNote() {
   const el = $('edit-note');
-  const { n, courseDelta, what } = editSummary();
+  const { n, courseDelta, effortDelta, what } = editSummary();
   el.hidden = !n;
   if (!n) return;
+  const was = formatDuration(S.goalSec, { forceHours: true });
   el.textContent = S.mode === 'evaluate'
-    ? `Includes ${what}: ${formatDelta(courseDelta)} on this course, worth ${formatDelta(S.flatShift)} on a flat course in ideal conditions.`
-    : `Includes ${what}: ${formatDelta(courseDelta)} vs the adjusted plan. That pacing is worth about ${formatDuration(S.goalSec + S.flatShift, { forceHours: true })} on a flat course in ideal weather.`;
+    ? `Includes ${what}: the flat equivalent moves ${formatDelta(effortDelta)} from ${was} and the time on this course ${formatDelta(courseDelta)} from ${formatDuration(S.enteredSec, { forceHours: true })}.`
+    : `Includes ${what}: the goal effort moves ${formatDelta(effortDelta)} from ${was} and the adjusted finish ${formatDelta(courseDelta)}.`;
 }
 
 // Map colours, legend, profile and notes for the current layer
@@ -762,6 +769,7 @@ function drawMapRoute() {
 // ---------------------------------------------------------------- splits
 function splitRunRows(layer) {
   const run = layer === 'total' ? S.plan : S.result.runs[layer];
+  if (layer === 'total') return makeSplits(S.windows, run, S.effort, splitBoundaries(S.splitMode, S.windows, S.hills));
   return makeSplits(S.windows, run, S.result.runs.base, splitBoundaries(S.splitMode, S.windows, S.hills));
 }
 function paceUnit() { return S.splitMode === 'hill' ? units : S.splitMode; }
@@ -782,9 +790,9 @@ function buildSplitRows() {
   const pu = paceUnit(), u = unitM(pu);
   // Recorded: your actual splits, ± against an even effort. Otherwise: the model's even-effort splits.
   const actual = S.recorded ? recordedRun() : S.plan;
-  // Unedited model splits, for the "model: m:ss" hint on edited rows
-  const model = S.edits.length ? makeSplits(windows, result.runs.total, result.runs.base, splitBoundaries(splitMode, windows, hills)) : null;
-  const ref = S.recorded ? result.runs.total : result.runs.base;
+  // Plan/evaluate: ± against each split's effort (so it shows the course effect)
+  const ref = S.recorded ? result.runs.total : S.effort;
+  const basePace = formatDuration(u / S.v0);
   const rows = makeSplits(windows, actual, ref, splitBoundaries(splitMode, windows, hills));
   const flatPace = (d0, d1) => { const f = flatOver(d0, d1); return f.len > 0 ? formatDuration(f.time / f.len * u) : '—'; };
   const out = [];
@@ -804,7 +812,8 @@ function buildSplitRows() {
     const pd = splitPaceDelta(r, pu);
     const edited = !S.recorded && !!findEdit(S.edits, r.d0, r.d1);
     out.push({
-      index: i, label, sub, kind, d0: r.d0, d1: r.d1, edited, modelTime: edited ? formatDuration(model[i].time) : null,
+      index: i, label, sub, kind, d0: r.d0, d1: r.d1, edited, modelEffort: basePace,
+      effort: formatDuration(r.baseTime / r.length * u),
       time: formatDuration(r.time), pace: formatDuration(splitPace(r, pu)), paceDelta: formatDelta(pd), paceDeltaSec: pd,
       cum: formatDuration(r.cum, { forceHours: true }), cumDelta: formatDelta(r.cumDelta), cumDeltaSec: r.cumDelta,
       extra: S.recorded ? flatPace(r.d0, r.d1) : null,
@@ -813,11 +822,11 @@ function buildSplitRows() {
     if (!halfDone && r.d1 >= half - 1) {
       halfDone = true;
       const th = runTimeAt(windows, actual, half), bh = runTimeAt(windows, ref, half);
-      out.push({ summary: true, label: 'Half', time: '', pace: formatDuration(th / half * u), paceDelta: formatDelta((th - bh) / half * u), paceDeltaSec: (th - bh) / half * u, cum: formatDuration(th, { forceHours: true }), cumDelta: formatDelta(th - bh), cumDeltaSec: th - bh, extra: S.recorded ? flatPace(0, half) : null });
+      out.push({ summary: true, label: 'Half', time: '', effort: formatDuration(bh / half * u), pace: formatDuration(th / half * u), paceDelta: formatDelta((th - bh) / half * u), paceDeltaSec: (th - bh) / half * u, cum: formatDuration(th, { forceHours: true }), cumDelta: formatDelta(th - bh), cumDeltaSec: th - bh, extra: S.recorded ? flatPace(0, half) : null });
     }
   });
-  const tot = actual.total, dt = tot - (S.recorded ? ref.total : goalSec);
-  out.push({ summary: true, label: 'Finish', time: '', pace: formatDuration(tot / course.distance * u), paceDelta: formatDelta(dt / course.distance * u), paceDeltaSec: dt / course.distance * u, cum: formatDuration(tot, { forceHours: true }), cumDelta: formatDelta(dt), cumDeltaSec: dt, extra: S.recorded ? flatPace(0, Infinity) : null });
+  const tot = actual.total, dt = tot - ref.total;
+  out.push({ summary: true, label: 'Finish', time: '', effort: formatDuration(ref.total / course.distance * u), pace: formatDuration(tot / course.distance * u), paceDelta: formatDelta(dt / course.distance * u), paceDeltaSec: dt / course.distance * u, cum: formatDuration(tot, { forceHours: true }), cumDelta: formatDelta(dt), cumDeltaSec: dt, extra: S.recorded ? flatPace(0, Infinity) : null });
   return out;
 }
 
@@ -839,16 +848,13 @@ function renderSplits() {
     : S.mode === 'evaluate' ? 'Estimated even-effort splits for your time. ' : '';
   const editHelp = !editable() ? ''
     : S.mode === 'evaluate'
-      ? ' To use your own splits, type them into the Split column: the finish time and the flat equivalent update, and the other splits stay as they are.'
-      : ' To change a split, type a new time into the Split column: the finish time moves by the same amount, and the other splits stay as they are.';
+      ? ' Effort is the flat, ideal-conditions pace behind each split. Type a new effort pace to see what that split would take on this course: the totals update and the other splits stay as they are.'
+      : ' Effort is the flat, ideal-conditions pace behind each split. Type a new effort pace for a split to recalculate its adjusted time: the totals update and the other splits stay as they are.';
   $('splits-sub').textContent = `${lead}${desc}. Bars show time gained or lost per split (${LAYER_NAMES[S.layer].toLowerCase()}). Hover to see a split on the map and profile; click to zoom to it.${editHelp}`;
-  const { n, courseDelta, what } = editSummary();
+  const { n, courseDelta, effortDelta, what } = editSummary();
   $('edit-bar').hidden = !n;
-  if (n) {
-    const flat = S.mode === 'evaluate' ? `, worth ${formatDelta(S.flatShift)} flat` : '';
-    $('edit-bar-text').textContent = `${what} · finish ${formatDelta(courseDelta)} vs the model${flat}`;
-  }
-  renderSplitTable($('split-table'), S.rows, { firstHeader: S.splitMode === 'hill' ? 'Segment' : 'Distance', unit: paceUnit(), extraHeader: S.recorded ? `Flat equiv. /${paceUnit()}` : null, editable: editable() });
+  if (n) $('edit-bar-text').textContent = `${what} · effort ${formatDelta(effortDelta)} · course time ${formatDelta(courseDelta)}`;
+  renderSplitTable($('split-table'), S.rows, { firstHeader: S.splitMode === 'hill' ? 'Segment' : 'Distance', unit: paceUnit(), extraHeader: S.recorded ? `Flat equiv. /${paceUnit()}` : null, effort: editable() });
   applyHighlightState();
 }
 
@@ -909,7 +915,8 @@ function focusAt(d, ev) {
   const t = (d - w.d0) / w.length;
   const ele = (w.ele0 + (w.ele1 - w.ele0) * t) * eleScale(units);
   const plan = S.plan;
-  const planDelta = u * (1 / plan.speeds[k] - 1 / S.v0);
+  const effortV = S.recorded ? S.v0 : S.effort.speeds[k];
+  const planDelta = u * (1 / plan.speeds[k] - 1 / effortV);
   // Per-factor effects for this stretch alone (before the ±200 m plan smoothing)
   const raw = run => u * (1 / S.result.runs[run].rawSpeeds[k] - 1 / S.v0);
   const ang = ((w.windAngle + 180) % 360) - 180;
@@ -922,6 +929,7 @@ function focusAt(d, ev) {
     ${S.recorded ? (S.rec.stopped[k]
       ? ttRow('Your pace', 'stopped')
       : ttRow('Your pace', formatPaceSec(u / S.rec.smoothSpeeds[k], units)) + ttRow('Flat equiv.', `${formatPaceSec(u / S.rec.flatSpeeds[k], units)} <span class="${deltaClass(u * (1 / S.rec.flatSpeeds[k] - 1 / S.v0))}">(${formatDelta(u * (1 / S.rec.flatSpeeds[k] - 1 / S.v0))})</span>`)) : ''}
+    ${S.recorded ? '' : ttRow('Effort pace', formatPaceSec(u / effortV, units))}
     ${ttRow(T().paceWord, `${formatPaceSec(u / plan.speeds[k], units)} <span class="${deltaClass(planDelta)}">(${formatDelta(planDelta)})</span>`)}
     <div class="tt-sep">This 100 m stretch</div>
     ${ttRow('Elevation', `${Math.round(ele)} ${eleUnit(units)} · ${w.grade >= 0 ? '+' : '−'}${Math.abs(w.grade * 100).toFixed(1)}%`)}
@@ -982,7 +990,7 @@ function renderMethod() {
       For the hill-segment view these are grouped into ${hills.length} segments, with hills found relative to this course's own terrain.</p>
     ${S.recorded ? `<p><b>Recorded run.</b> Your splits, the elapsed times and the "Your effort" view come from the file's timestamps, with GPS noise smoothed over ±${PACE_SMOOTH_M} m. Stretches slower than ${formatPaceSec(unitM(units) / STOP_SPEED, units)} count as stops: they stay in your elapsed time but are left out of the effort analysis. The headline equivalent still assumes an even effort, so it compares fairly with plan mode; the Flat equiv. column comes from how you actually paced it, so its average can differ from the headline by a few seconds per mile.</p>` : ''}
     ${S.mode === 'evaluate' ? `<p><b>Evaluate mode.</b> The app finds the flat, ideal-conditions time whose adjusted time on this course matches yours, assuming an even effort. The splits show how that even effort would have split on this course; compare them with your watch splits.</p>` : ''}
-    ${S.edits.length ? `<p><b>Edited splits.</b> Each edited split takes the time you entered, spread across it in the same pattern as the model's pacing; every other split keeps the model's time, so the finish moves by exactly the change. The hourly weather stays where the original ${S.mode === 'evaluate' ? 'evaluation' : 'plan'} placed it. The flat equivalent of an edit runs each 100 m stretch at the edited pace back through the models.</p>` : ''}
+    ${S.edits.length ? `<p><b>Edited effort splits.</b> Each edited split's 100 m stretches are run through the models again at the effort pace you entered. Its adjusted time changes by the ratio of the new to the old adjusted speed, which keeps the ±${PACE_SMOOTH_M} m smoothing inside the split and leaves every other split exactly as it was. The hourly weather stays where the original ${S.mode === 'evaluate' ? 'evaluation' : 'plan'} placed it.</p>` : ''}
     <p><b>Adjustments</b> are applied in the order grade → wind → heat, each keeping the effort of the flat-ground pace in calm, cool air.
       Grade uses Minetti (2002) and the Black et al. (2018) running-cost data, with descents steeper than ${Math.round(DOWNHILL_CAP_GRADE * 100)}% given no extra benefit.
       Wind uses an aerodynamic drag model, with wind measured at 10 m and scaled to chest height (α = ${WIND_ALPHA}), for a ${RUNNER_KG} kg runner.
@@ -1003,12 +1011,12 @@ function exportCsv() {
   if (!S) return;
   const pu = paceUnit();
   const vs = S.recorded ? 'vs even effort' : T().csvVs;
-  const edits = S.edits.length > 0;
-  const header = [S.splitMode === 'hill' ? 'Segment' : 'Distance', 'Detail', `From (${units})`, `To (${units})`, 'Split time', ...(edits ? ['Edited', 'Model split'] : []), `Pace /${pu}`, `Pace ${vs}`, ...(S.recorded ? [`Flat equiv. /${pu}`] : []), 'Elapsed', `Elapsed ${vs}`];
+  const eff = !S.recorded, edits = S.edits.length > 0;
+  const header = [S.splitMode === 'hill' ? 'Segment' : 'Distance', 'Detail', `From (${units})`, `To (${units})`, ...(eff ? [`Effort /${pu}`] : []), ...(edits ? ['Effort edited'] : []), 'Split time', `Pace /${pu}`, `Pace ${vs}`, ...(S.recorded ? [`Flat equiv. /${pu}`] : []), 'Elapsed', `Elapsed ${vs}`];
   const ascii = s => (s ?? '').replace(/−/g, '-').replace(/–/g, '-');
   const rows = S.rows.map(r => [
     ascii(r.label), ascii(r.sub), r.summary ? '' : (r.d0 / unitM(units)).toFixed(2), r.summary ? '' : (r.d1 / unitM(units)).toFixed(2),
-    r.time, ...(edits ? [r.edited ? 'yes' : '', r.modelTime ?? ''] : []), r.pace, ascii(r.paceDelta), ...(S.recorded ? [r.extra ?? ''] : []), r.cum, ascii(r.cumDelta)
+    ...(eff ? [r.effort ?? ''] : []), ...(edits ? [r.edited ? 'yes' : ''] : []), r.time, r.pace, ascii(r.paceDelta), ...(S.recorded ? [r.extra ?? ''] : []), r.cum, ascii(r.cumDelta)
   ]);
   const safe = S.name.replace(/[^\w\- ]+/g, '').trim().replace(/\s+/g, '-') || 'race';
   downloadCsv(`${safe}-${S.recorded ? 'recorded' : S.mode === 'evaluate' ? 'evaluation' : 'plan'}-${S.splitMode}-splits.csv`, header, rows);

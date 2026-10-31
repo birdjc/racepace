@@ -54,6 +54,9 @@ function adjustOne(w, baseSpeed, on, warn) {
   return v;
 }
 
+// One stretch at one flat effort speed, without the pace smoothing (edited effort splits)
+export const adjustSpeed = (w, v, on) => adjustOne(w, v, on, new Set());
+
 // Length-weighted moving average of seconds-per-metre over ±radiusM, rescaled so the total time
 // is preserved exactly. Returns new speeds.
 export function smoothPacePlan(windows, speeds, radiusM = PACE_SMOOTH_M) {

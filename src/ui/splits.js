@@ -72,25 +72,26 @@ export class SplitChart {
   }
 }
 
-// rows: [{ label, sub, kind, time, pace, paceDelta, cum, cumDelta, summary, extra, edited, modelTime }]
+// rows: [{ label, sub, kind, effort, edited, modelEffort, time, pace, paceDelta, cum, cumDelta, summary, extra }]
 // extraHeader (optional) adds a column after Pace, filled from row.extra (recorded runs: flat equiv.)
-// editable: split times are inputs (data-i = row index); edited rows get a reset button
-export function renderSplitTable(table, rows, { firstHeader, unit, extraHeader = null, editable = false }) {
+// effort: adds an editable Effort pace column (inputs with data-i = row index; edited rows get a reset button)
+export function renderSplitTable(table, rows, { firstHeader, unit, extraHeader = null, effort = false }) {
   const d = (sec, txt) => `<span class="d ${sec > 0.5 ? 'slow' : sec < -0.5 ? 'fast' : ''}">${esc(txt)}</span>`;
-  table.innerHTML = `<thead><tr><th scope="col">${esc(firstHeader)}</th><th scope="col">Split</th><th scope="col">Pace /${esc(unit)}</th>${extraHeader ? `<th scope="col">${esc(extraHeader)}</th>` : ''}<th scope="col">Elapsed</th></tr></thead>
+  table.innerHTML = `<thead><tr><th scope="col">${esc(firstHeader)}</th>${effort ? `<th scope="col" title="Flat, ideal-conditions effort pace for each split. Type a new pace to change it.">Effort /${esc(unit)}</th>` : ''}<th scope="col">Split</th><th scope="col">Pace /${esc(unit)}</th>${extraHeader ? `<th scope="col">${esc(extraHeader)}</th>` : ''}<th scope="col">Elapsed</th></tr></thead>
     <tbody>${rows.map(r => `<tr ${r.summary ? 'class="summary-row"' : `data-i="${r.index}" tabindex="0"`}>
       <td>${r.kind ? `<span class="kind-dot ${r.kind}"></span>` : ''}${esc(r.label)}${r.sub ? `<span class="kind">${esc(r.sub)}</span>` : ''}</td>
-      <td>${editable && !r.summary ? splitInput(r) : esc(r.time)}</td>
+      ${effort ? `<td>${r.summary ? esc(r.effort ?? '') : effortInput(r, unit)}</td>` : ''}
+      <td>${esc(r.time)}</td>
       <td>${esc(r.pace)}${d(r.paceDeltaSec, r.paceDelta)}</td>
       ${extraHeader ? `<td>${esc(r.extra ?? '—')}</td>` : ''}
       <td>${esc(r.cum)}${d(r.cumDeltaSec, r.cumDelta)}</td>
     </tr>`).join('')}</tbody>`;
 }
 
-function splitInput(r) {
-  const hint = r.edited ? `Edited (model: ${r.modelTime}). Clear it or press reset to go back to the model.` : 'Type a new split time (m:ss) and press Enter.';
-  return `<span class="split-edit${r.edited ? ' edited' : ''}"><input class="split-input" data-i="${r.index}" value="${esc(r.time)}" autocomplete="off" spellcheck="false" enterkeyhint="next" aria-label="Split time, ${esc(r.label)}${r.edited ? ', edited' : ''}" title="${esc(hint)}">${r.edited
-    ? `<button type="button" class="split-reset" data-i="${r.index}" aria-label="Reset ${esc(r.label)} to the model's ${esc(r.modelTime)}" title="Back to the model's ${esc(r.modelTime)}"><svg viewBox="0 0 24 24" width="13" height="13" aria-hidden="true"><path d="M4 12a8 8 0 1 0 2.3-5.6M4 4v4h4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></button>` : ''}</span>`;
+function effortInput(r, unit) {
+  const hint = r.edited ? `Edited (was ${r.modelEffort}/${unit}). Clear it or press reset to go back.` : `Type a new effort pace (m:ss per ${unit}) and press Enter.`;
+  return `<span class="split-edit${r.edited ? ' edited' : ''}"><input class="split-input" data-i="${r.index}" value="${esc(r.effort)}" autocomplete="off" spellcheck="false" enterkeyhint="next" aria-label="Effort pace per ${esc(unit)}, ${esc(r.label)}${r.edited ? ', edited' : ''}" title="${esc(hint)}">${r.edited
+    ? `<button type="button" class="split-reset" data-i="${r.index}" aria-label="Reset ${esc(r.label)} to ${esc(r.modelEffort)}" title="Back to ${esc(r.modelEffort)}/${esc(unit)}"><svg viewBox="0 0 24 24" width="13" height="13" aria-hidden="true"><path d="M4 12a8 8 0 1 0 2.3-5.6M4 4v4h4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></button>` : ''}</span>`;
 }
 
 export function downloadCsv(filename, header, rows) {
