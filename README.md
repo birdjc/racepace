@@ -10,6 +10,10 @@ Upload a GPX course and a start date and time, then choose a mode:
   date, start time and finish time from the file and shows your actual splits, each split's flat
   equivalent, stops, and a "Your effort" map/profile view. A demo recording is included.
 
+- **Editable splits** (plan and evaluate): type any split time into the table to change it. The
+  finish time moves by exactly that change and the other splits stay as they are; in evaluate mode
+  the flat equivalent updates too, so you can enter your own watch splits.
+
 Both use John J. Davis's Running Writings models.
 
 **Live: https://birdjc.github.io/racepace/**

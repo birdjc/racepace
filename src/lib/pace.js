@@ -12,6 +12,20 @@ export function parseDuration(text) {
   return NaN;
 }
 
+// Split times are m:ss or h:mm:ss. Digits only (phone keypads have no colon): "8" → 8:00,
+// "742" → 7:42, "10230" → 1:02:30. Minutes and seconds after the first part must be below 60.
+export function parseSplit(text) {
+  const s = String(text).trim();
+  let parts;
+  if (/^\d{1,6}$/.test(s)) {
+    parts = s.length <= 2 ? [s, '0'] : s.length <= 4 ? [s.slice(0, -2), s.slice(-2)] : [s.slice(0, -4), s.slice(-4, -2), s.slice(-2)];
+  } else parts = s.split(':');
+  const n = parts.map(p => (p.trim() === '' ? NaN : Number(p)));
+  if (n.length < 2 || n.length > 3 || n.some(x => !Number.isFinite(x) || x < 0) || n.slice(1).some(x => x >= 60)) return NaN;
+  const sec = n.reduce((a, x) => a * 60 + x, 0);
+  return sec > 0 ? sec : NaN;
+}
+
 export function formatDuration(sec, { forceHours = false } = {}) {
   if (!Number.isFinite(sec)) return '—';
   const s = Math.round(sec);

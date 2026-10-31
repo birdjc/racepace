@@ -265,6 +265,17 @@ table.splits tbody tr { cursor: pointer; }
 table.splits tbody tr:hover, table.splits tbody tr.active { background: color-mix(in srgb, var(--accent) 8%, transparent); }
 table.splits tr.summary-row td { font-weight: 700; background: var(--surface-2); cursor: default; }
 table.splits .d { font-size: 0.8rem; margin-left: 6px; font-weight: 600; }
+/* Editable split times: look like plain text until hovered or focused */
+.split-edit { display: inline-flex; align-items: center; justify-content: flex-end; gap: 2px; }
+.split-input { width: 6.2ch; font: inherit; font-variant-numeric: tabular-nums; text-align: right; color: inherit; background: transparent; border: 1px dashed var(--border-strong); border-radius: 6px; padding: 2px 5px; cursor: text; }
+.split-input:hover { border-style: solid; }
+.split-input:focus { outline: 2px solid var(--focus); outline-offset: 0; border-color: transparent; background: var(--surface); }
+.split-input[aria-invalid="true"] { border: 1px solid var(--slow); color: var(--slow); }
+.split-edit.edited .split-input { border: 1px solid var(--accent); background: color-mix(in srgb, var(--accent) 12%, transparent); font-weight: 700; }
+.split-reset { display: inline-grid; place-items: center; width: 22px; height: 22px; border: 0; border-radius: 6px; background: transparent; color: var(--muted); cursor: pointer; padding: 0; }
+.split-reset:hover { color: var(--ink); background: var(--surface-2); }
+.edit-bar { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 6px 12px; margin: 0 0 10px; padding: 8px 12px; border-radius: 10px; background: color-mix(in srgb, var(--accent) 10%, transparent); font-size: 0.88rem; }
+.edit-note { margin: 10px 0 0; }
 table.splits .kind { display: block; font-size: 0.75rem; color: var(--muted); }
 .kind-dot { display: inline-block; width: 8px; height: 8px; border-radius: 2px; margin-right: 6px; vertical-align: 1px; background: var(--muted); }
 .kind-dot.climb { background: var(--slow); }

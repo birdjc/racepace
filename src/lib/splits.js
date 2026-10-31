@@ -21,13 +21,16 @@ export function unitBoundaries(total, unitM) {
   return b;
 }
 
+// Elapsed time at d for a run; edited plans carry their own exact timeAt (see edits.js)
+export const runTimeAt = (windows, run, d) => (run.timeAt ? run.timeAt(d) : timeAt(windows, run.cum, d));
+
 // run/base: outputs of runModel. Returns one row per [b[i], b[i+1]].
 export function makeSplits(windows, run, base, boundaries, labels = null) {
   const rows = [];
   for (let i = 0; i < boundaries.length - 1; i++) {
     const d0 = boundaries[i], d1 = boundaries[i + 1];
-    const t0 = timeAt(windows, run.cum, d0), t1 = timeAt(windows, run.cum, d1);
-    const b0 = timeAt(windows, base.cum, d0), b1 = timeAt(windows, base.cum, d1);
+    const t0 = runTimeAt(windows, run, d0), t1 = runTimeAt(windows, run, d1);
+    const b0 = runTimeAt(windows, base, d0), b1 = runTimeAt(windows, base, d1);
     rows.push({
       label: labels ? labels[i] : null,
       d0, d1, length: d1 - d0,
