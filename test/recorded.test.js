@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { parseGpx, parseGpxTime, timestampInfo } from '../src/lib/gpx.js';
+import { parseGpx, parseGpxTime, timestampInfo, findPauses, movingClock } from '../src/lib/gpx.js';
 import { resample } from '../src/lib/geo.js';
 import { buildWindows } from '../src/lib/segments.js';
 import { attachWeather, runModel, flatEquivalentSpeed } from '../src/lib/adjust.js';
@@ -88,5 +88,43 @@ describe('recorded-run analysis', () => {
     const a = analyseRecording(w0, timed, on);
     expect(a.stoppedCount).toBe(0);
     a.flatSpeeds.forEach(v => expect(v).toBeCloseTo(3.5, 1));
+  });
+});
+
+describe('watch pauses', () => {
+  // 1 point per second at 3.33 m/s (10 m apart); extra seconds added after given point indices
+  const timed = extra => line(400, i => iso(T0 + (i * 3 + Object.entries(extra).reduce((a, [k, v]) => a + (i > k ? v : 0), 0)) * 1000));
+  it('finds a time gap with little distance moved, and removes its time', () => {
+    const g = parseGpx(gpx(timed({ 100: 120 })));
+    const ps = g.timestamps.pauses;
+    expect(ps).toHaveLength(1);
+    expect(ps[0].d).toBeCloseTo(1000, 0);
+    // 123 s gap over 10 m: the 10 m keeps its usual 3 s, 120 s is removed
+    expect(ps[0].sec).toBeCloseTo(120, 0);
+    expect(g.timestamps.pausedSec).toBeCloseTo(120, 0);
+  });
+  it('ignores short gaps and GPS dropouts covered at running pace', () => {
+    // 6 s extra (below the 10 s minimum) and a 30 s gap across 10 m... vs a dropout: 300 m skipped in 90 s
+    const pts = timed({ 50: 6 });
+    expect(findPauses(pts.map(p => ({ ...p, t: Date.parse(p.time) })))).toHaveLength(0);
+    const drop = line(300, i => iso(T0 + i * 3000)).filter((_, i) => i < 100 || i >= 130).map(p => ({ ...p, t: Date.parse(p.time) }));
+    expect(findPauses(drop)).toHaveLength(0);
+  });
+  it('a new track segment counts as a pause', () => {
+    const a = line(100, i => iso(T0 + i * 3000));
+    const b = line(200, i => iso(T0 + (i * 3 + 20) * 1000)).slice(100);
+    const xml = `<gpx><trk><trkseg>${a.map(p => `<trkpt lat="${p.lat}" lon="${p.lon}"><time>${p.time}</time></trkpt>`).join('')}</trkseg><trkseg>${b.map(p => `<trkpt lat="${p.lat}" lon="${p.lon}"><time>${p.time}</time></trkpt>`).join('')}</trkseg></trk></gpx>`;
+    const g = parseGpx(xml);
+    expect(g.points[99].seg).toBe(0);
+    expect(g.points[100].seg).toBe(1);
+    expect(g.timestamps.pauses).toHaveLength(1);
+    expect(g.timestamps.pauses[0].segBreak).toBe(true);
+    expect(g.timestamps.pauses[0].sec).toBeCloseTo(20, 0);
+  });
+  it('the moving clock skips paused time', () => {
+    const clock = movingClock([{ startMs: 1000, endMs: 11000, sec: 10 }]);
+    expect(clock(500)).toBe(500);
+    expect(clock(6000)).toBe(1000);
+    expect(clock(20000)).toBe(10000);
   });
 });

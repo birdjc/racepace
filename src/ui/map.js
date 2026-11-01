@@ -107,6 +107,18 @@ export class CourseMap {
     this.unitLabel = unitLabel;
   }
 
+  // Watch pauses on recorded runs: small dark labels just above the route, e.g. "Paused 4:54"
+  setPauseMarkers(list) {
+    if (!this.course) return;
+    for (const q of list) {
+      const p = this.pointAt(q.d), w = Math.round(q.label.length * 6.2 + 14);
+      L.marker([p.lat, p.lon], {
+        interactive: false, keyboard: false, zIndexOffset: 500,
+        icon: L.divIcon({ className: 'km-label pause-label', html: q.label, iconSize: [w, 18], iconAnchor: [w / 2, 27] })
+      }).addTo(this.markerLayer);
+    }
+  }
+
   pointAt(d) {
     const pts = this.course.points;
     const i = Math.max(0, Math.min(pts.length - 1, Math.round(d / (pts[1].d - pts[0].d))));

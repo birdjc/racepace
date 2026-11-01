@@ -154,6 +154,7 @@ main { max-width: 1180px; margin: 0 auto; padding: 20px 16px 64px; }
 .toggle-row input:checked + .switch { background: var(--btn); }
 .toggle-row input:checked + .switch::after { transform: translateX(12px); background: var(--on-btn); }
 .toggle-row input:focus-visible + .switch { outline: 2px solid var(--focus); outline-offset: 2px; }
+.pause-row { margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--border); }
 .toggle-text { display: flex; flex-direction: column; gap: 2px; }
 .toggle-title { font-weight: 600; font-size: 0.92rem; }
 .field input[readonly], .goal-part input[readonly] { background: var(--surface-2); color: var(--ink-2); }
@@ -234,6 +235,9 @@ main { max-width: 1180px; margin: 0 auto; padding: 20px 16px 64px; }
 .end-label { color: #fff; border: 0; font-size: 10px; letter-spacing: .04em; }
 .end-label.start { background: #0ca30c; }
 .end-label.finish { background: #111827; }
+.pause-label { background: var(--ink); color: var(--surface); border: 0; padding: 0 7px; white-space: nowrap; }
+.profile .pause-line { stroke: var(--ink-2); stroke-width: 1; stroke-dasharray: 3 3; }
+.profile .pause-tick { fill: var(--ink-2); font-weight: 650; }
 
 /* Profile */
 .profile-head { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; margin: 16px 0 4px; flex-wrap: wrap; }

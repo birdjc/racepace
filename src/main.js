@@ -1,4 +1,4 @@
-import { parseGpx } from './lib/gpx.js';
+import { parseGpx, movingClock } from './lib/gpx.js';
 import { withDistance } from './lib/geo.js';
 import { buildCourse } from './lib/course.js';
 import { getRaceWeather, getTimezone, localToMs } from './lib/weather.js';
@@ -144,9 +144,11 @@ const LOCKABLE = ['race-date', 'start-time', 'goal-time', 'goal-h', 'goal-m', 'g
 function setupRecording(gpx) {
   if (input.rec?.on) setRecordedOn(false);
   const info = gpx.timestamps;
-  const rec = { info, tz: null, tzError: false, on: false, prev: null, tzPromise: null };
+  const rec = { info, tz: null, tzError: false, on: false, prev: null, tzPromise: null, removePauses: false };
   input.rec = rec;
   $('use-recorded').checked = false;
+  $('remove-pauses').checked = false;
+  $('pause-row').hidden = true;
   $('recorded-box').hidden = !info.ok;
   const un = $('recorded-unusable');
   un.hidden = info.ok || info.reason === 'no timestamps';
@@ -175,6 +177,9 @@ function updateRecordedSummary() {
   $('recorded-summary').textContent = text;
   $('use-recorded').disabled = r.tzError;
 }
+// Finish time taken from the recording: elapsed, or moving time when watch pauses are removed
+const recordedFinishSec = r => r.info.elapsedSec - (r.removePauses ? r.info.pausedSec : 0);
+const pauseCount = n => (n === 1 ? 'once' : n === 2 ? 'twice' : `${n} times`);
 async function setRecordedOn(on) {
   const r = input.rec;
   if (!r?.info.ok) return;
@@ -187,7 +192,7 @@ async function setRecordedOn(on) {
     const local = utcToLocal(r.info.startMs, tz);
     $('race-date').value = local.slice(0, 10);
     $('start-time').value = local.slice(11, 16);
-    $('goal-time').value = formatDuration(Math.round(r.info.elapsedSec), { forceHours: true });
+    $('goal-time').value = formatDuration(Math.round(recordedFinishSec(r)), { forceHours: true });
   } else {
     r.on = false;
     if (r.prev) {
@@ -198,6 +203,10 @@ async function setRecordedOn(on) {
     }
   }
   $('use-recorded').checked = on;
+  // Watch pauses: the option appears only for a recording that has them
+  const n = r.info.pauses.length;
+  $('pause-row').hidden = !(on && n);
+  if (n) $('pause-summary').textContent = `Your watch was paused ${pauseCount(n)} (${formatDuration(r.info.pausedSec)} in total). Switch on to use moving time for the finish and splits.`;
   LOCKABLE.forEach(id => { $(id).readOnly = on; $(id).removeAttribute('aria-invalid'); });
   $('mode').querySelector('[data-mode="plan"]').disabled = on;
   if (isTouch()) setGoalParts($('goal-time').value);
@@ -205,6 +214,14 @@ async function setRecordedOn(on) {
   updateInputHints();
 }
 $('use-recorded').addEventListener('change', e => setRecordedOn(e.target.checked));
+$('remove-pauses').addEventListener('change', e => {
+  const r = input.rec;
+  if (!r?.on) return;
+  r.removePauses = e.target.checked;
+  $('goal-time').value = formatDuration(Math.round(recordedFinishSec(r)), { forceHours: true });
+  if (isTouch()) setGoalParts($('goal-time').value);
+  updateInputHints();
+});
 $('race-name-input').addEventListener('input', () => { input.nameAuto = false; });
 
 function drawSpark(pts, coverage) {
@@ -230,7 +247,9 @@ function updateInputHints() {
   const goal = parseDuration($('goal-time').value);
   const hint = $('goal-hint');
   if (input.rec?.on) {
-    hint.textContent = 'From your recording: elapsed time from first to last point, including any stops.';
+    hint.textContent = input.rec.removePauses
+      ? `From your recording: moving time, with ${formatDuration(input.rec.info.pausedSec)} of watch pauses removed.`
+      : 'From your recording: elapsed time from first to last point, including any stops.';
     hint.classList.add('ok');
   } else if (goal > 0 && p) {
     hint.textContent = MODE_TEXT[mode].hintAvg(formatPaceSec(goal / p.distance * unitM(units), units));
@@ -369,7 +388,7 @@ function recompute() {
   S.v0 = S.mode === 'evaluate' ? solveFlatSpeed(S.windows, S.enteredSec, S.toggles) : dist / S.enteredSec;
   S.goalSec = dist / S.v0;
   S.result = computeAll(S.windows, S.v0, S.toggles);
-  S.rec = S.recorded ? analyseRecording(S.windows, S.course.points, S.toggles) : null;
+  S.rec = S.recorded ? analyseRecording(S.windows, S.recPoints, S.toggles) : null;
   applyPlanEdits();
 }
 
@@ -427,10 +446,15 @@ $('input-form').addEventListener('submit', async e => {
     const t0 = course.points[0].t;
     const pace = recorded ? w => (course.points[Math.round((w.i0 + w.i1) / 2)].t - t0) / 1000 : course.distance / goalSec;
     const windows = attachWeather(baseWindows, pace, weather.hours, startLocal);
+    // Removing watch pauses: the recording's clock skips the paused time (weather above keeps the real clock)
+    const pauses = recorded ? input.rec.info.pauses : [];
+    const removePauses = recorded && input.rec.removePauses && pauses.length > 0;
+    const clock = removePauses ? movingClock(pauses) : null;
+    const recPoints = clock ? course.points.map(p => ({ ...p, t: clock(p.t) })) : course.points;
     let gain = 0, loss = 0;
     windows.forEach(w => { const dz = w.ele1 - w.ele0; if (dz > 0) gain += dz; else loss -= dz; });
     S = {
-      mode: runMode, recorded, course, prof, windows, hills, weather, place, startLocal, gain, loss,
+      mode: runMode, recorded, pauses, removePauses, recPoints, course, prof, windows, hills, weather, place, startLocal, gain, loss,
       enteredSec: goalSec, edits: [],
       name: $('race-name-input').value.trim() || course.name || input.fileName.replace(/\.gpx$/i, ''),
       toggles: { grade: true, wind: true, heat: true },
@@ -657,9 +681,13 @@ function renderHeader() {
     `↑ ${Math.round(gain * eleScale(units))} ${eleUnit(units)}  ↓ ${Math.round(loss * eleScale(units))} ${eleUnit(units)}`,
     src
   ];
+  if (S.pauses.length) items.push(S.removePauses ? `Moving time, ${formatDuration(pausedTotal())} of pauses removed` : `Includes ${formatDuration(pausedTotal())} of watch pauses`);
   $('race-meta').innerHTML = items.map(t => `<span>${esc(t)}</span>`).join('<span aria-hidden="true">·</span>');
   document.title = `${S.name} · Race Pace Adjuster`;
 }
+
+const pausedTotal = () => S.pauses.reduce((a, q) => a + q.sec, 0);
+const pauseMarks = () => S.pauses.map(q => ({ d: q.d, label: `Paused ${formatDuration(q.sec)}` }));
 
 function renderSummary() {
   const { goalSec, course, result, toggles } = S;
@@ -728,7 +756,8 @@ function renderLayer() {
   const deltas = deltasFor(S.layer);
   profile.set({
     windows: S.windows, deltas, eleScale: eleScale(units), eleUnit: eleUnit(units), unitM: unitM(units), unitLabel: units,
-    bands: S.splitMode === 'hill' ? S.hills : null
+    bands: S.splitMode === 'hill' ? S.hills : null,
+    pauses: pauseMarks()
   });
   const notes = {
     total: S.mode === 'evaluate'
@@ -760,6 +789,7 @@ function drawMapRoute() {
   const pal = divergingPalette();
   map.setRoute(S.course, S.windows, deltas.map(v => divergingColor(v, maxAbs, pal)));
   map.setDistanceMarkers(unitM(units), units);
+  map.setPauseMarkers(pauseMarks());
   const r = `${Math.round(maxAbs)}${clipped ? '+' : ''}`;
   $('map-legend').innerHTML = `<div><strong>${esc(LAYER_NAMES[S.layer])}</strong> · pace change, s/${units}</div>
     <div class="bar" style="background:linear-gradient(90deg, ${pal.fast}, ${pal.zero} 50%, ${pal.slow})"></div>
@@ -1001,6 +1031,12 @@ function renderMethod() {
   const notes = [...result.warnings];
   if (S.recorded && S.rec.stoppedCount) {
     notes.unshift(`Your recording includes ${S.rec.stoppedCount} stopped or very slow ${S.rec.stoppedCount === 1 ? 'stretch' : 'stretches'} (${formatDuration(S.rec.stoppedSec)} in total). That time counts toward your elapsed time but is left out of the effort analysis.`);
+  }
+  if (S.pauses.length) {
+    const what = `Your watch was paused ${pauseCount(S.pauses.length)} (${formatDuration(pausedTotal())} in total, marked on the map and profile).`;
+    notes.unshift(S.removePauses
+      ? `${what} That time is removed: the finish time, splits and effort use moving time. The weather is still placed by the actual clock time.`
+      : `${what} That time is included in your finish time and splits. To leave it out, go back to the inputs and switch on "Remove paused time".`);
   }
   $('warnings').innerHTML = notes.map(w => `<li>${esc(w)}</li>`).join('');
   $('warnings').hidden = !notes.length;

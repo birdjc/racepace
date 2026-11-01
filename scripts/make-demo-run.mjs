@@ -1,6 +1,7 @@
 // Builds public/demo/demo-run.gpx: the demo course with synthetic watch timestamps, for trying the
 // "use the recorded run" option. Even effort by the grade model (3:20 flat equivalent) with ±4%
-// random variation per 100 m and a 45 s stop near halfway; start 2026-04-20 10:00 EDT (14:00 UTC).
+// random variation per 100 m, a 45 s standing stop near halfway (watch still running) and a 2:30 watch
+// pause at about 30% (a time gap between two points); start 2026-04-20 10:00 EDT (14:00 UTC).
 import fs from 'fs';
 import { nodeTileLoader } from './node-tile-loader.mjs';
 import { buildCourse } from '../src/lib/course.js';
@@ -29,8 +30,9 @@ times.forEach(t => cum.push(cum[cum.length - 1] + t));
 const start = Date.parse('2026-04-20T14:00:00Z');
 const pts = withDistance(parseGpx(src).points);
 const scale = course.distance / pts[pts.length - 1].d;
+const PAUSE_SEC = 150, pauseD = course.distance * 0.3;
 const body = pts.map(p => {
-  const t = start + timeAt(windows, cum, p.d * scale) * 1000;
+  const t = start + (timeAt(windows, cum, p.d * scale) + (p.d * scale >= pauseD ? PAUSE_SEC : 0)) * 1000;
   return `    <trkpt lat="${p.lat.toFixed(6)}" lon="${p.lon.toFixed(6)}"><time>${new Date(Math.round(t / 1000) * 1000).toISOString().replace('.000', '')}</time></trkpt>`;
 }).join('\n');
 fs.writeFileSync('public/demo/demo-run.gpx', `<?xml version="1.0" encoding="UTF-8"?>
@@ -41,4 +43,4 @@ ${body}
   </trkseg></trk>
 </gpx>
 `);
-console.log(`demo-run.gpx: ${pts.length} points, elapsed ${(cum[cum.length - 1] / 60).toFixed(1)} min`);
+console.log(`demo-run.gpx: ${pts.length} points, elapsed ${((cum[cum.length - 1] + PAUSE_SEC) / 60).toFixed(1)} min`);

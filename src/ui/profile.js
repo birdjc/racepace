@@ -26,7 +26,8 @@ export class ProfileChart {
     el.addEventListener('blur', () => this.onLeave?.());
   }
 
-  // data: { windows, deltas (s per unit), eleScale, eleUnit, unitM, unitLabel, bands: [{d0,d1}] | null }
+  // data: { windows, deltas (s per unit), eleScale, eleUnit, unitM, unitLabel, bands: [{d0,d1}] | null,
+  //         pauses: [{ d, label }] (recorded runs: watch pauses, drawn as dashed lines) }
   set(data) {
     this.data = data;
     // Measure directly too, so the first render doesn't depend on a ResizeObserver callback
@@ -70,6 +71,12 @@ export class ProfileChart {
     const bands = (d.bands ?? []).map((b, i) => i % 2
       ? `<rect x="${x(b.d0).toFixed(1)}" y="${top}" width="${(x(b.d1) - x(b.d0)).toFixed(1)}" height="${eleH}" fill="currentColor" opacity="0.035"/>` : '').join('');
 
+    const pauses = (d.pauses ?? []).map(q => {
+      const px = x(q.d), anchor = px < padL + 30 ? 'start' : px > W - padR - 30 ? 'end' : 'middle';
+      return `<line x1="${px.toFixed(1)}" x2="${px.toFixed(1)}" y1="${top + 14}" y2="${top + eleH}" class="pause-line"/>
+        <text x="${px.toFixed(1)}" y="${top + 9}" class="tick pause-tick" text-anchor="${anchor}">${esc(q.label)}</text>`;
+    }).join('');
+
     const unitsTotal = total / d.unitM;
     const xs = niceStep(unitsTotal), xt = [];
     for (let v = 0; v <= unitsTotal + 1e-9; v += xs) xt.push(v);
@@ -82,6 +89,7 @@ export class ProfileChart {
       ${yt.map(v => `<line x1="${padL}" x2="${W - padR}" y1="${y(v).toFixed(1)}" y2="${y(v).toFixed(1)}" class="grid"/><text x="${padL - 8}" y="${(y(v) + 4).toFixed(1)}" class="tick" text-anchor="end">${Math.round(v)}</text>`).join('')}
       <text x="${padL - 8}" y="${top - 0}" class="tick" text-anchor="end" dy="-1">${esc(d.eleUnit)}</text>
       <path d="${area}" class="elev-area"/><path d="${line}" class="elev-line"/>
+      ${pauses}
       <rect class="range-band" id="pf-range" x="0" y="${top}" width="0" height="${eleH + gap + barH}" visibility="hidden"/>
       <line x1="${padL}" x2="${W - padR}" y1="${base}" y2="${base}" class="axis"/>
       ${bars}

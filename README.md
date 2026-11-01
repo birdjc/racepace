@@ -8,7 +8,9 @@ Upload a GPX course and a start date and time, then choose a mode:
   course in ideal conditions. Works for past races (recorded weather) and future ones.
 - **Recorded runs:** if the GPX comes from a watch (timestamps on the points), a toggle fills in the
   date, start time and finish time from the file and shows your actual splits, each split's flat
-  equivalent, stops, and a "Your effort" map/profile view. A demo recording is included.
+  equivalent, stops, and a "Your effort" map/profile view. Watch pauses are detected from gaps in
+  the timestamps (GPX has no pause flag) and marked on the map; an option removes them so the
+  finish and splits use moving time. A demo recording is included.
 
 - **Editable effort splits** (plan and evaluate): the split table shows the flat, ideal-conditions
   effort pace behind each split. Type a different effort for any split (say 5:50/mi instead of
