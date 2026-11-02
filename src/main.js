@@ -458,7 +458,7 @@ $('input-form').addEventListener('submit', async e => {
       enteredSec: goalSec, edits: [],
       name: $('race-name-input').value.trim() || course.name || input.fileName.replace(/\.gpx$/i, ''),
       toggles: { grade: true, wind: true, heat: true },
-      splitMode: units, layer: recorded ? 'effort' : 'total', selected: null, hovered: null
+      splitMode: units, layer: recorded ? 'effort' : 'total', selected: null, hovered: null, range: null
     };
     recompute();
     showResults();
@@ -496,7 +496,12 @@ $('back').addEventListener('click', () => {
 
 function initResultViews() {
   map = new CourseMap($('map'), { onHover: (d, ev) => focusAt(d, ev), onLeave: clearFocus });
-  profile = new ProfileChart($('profile'), { onHover: (d, ev) => focusAt(d, ev), onLeave: clearFocus });
+  profile = new ProfileChart($('profile'), {
+    onHover: (d, ev) => focusAt(d, ev), onLeave: clearFocus,
+    onSelect: (d0, d1, done) => selectRange({ d0, d1 }, done),
+    onSelectClear: () => { if (S?.range) { selectRange(null, true); map.fit(); } }
+  });
+  $('range-panel').addEventListener('click', e => { if (e.target.closest('.rp-close')) { selectRange(null, true); map.fit(); } });
   splitChart = new SplitChart($('split-chart'), {
     onHover: (i, ev) => hoverSplit(i, ev, 'chart'),
     onLeave: () => hoverSplit(null),
@@ -623,7 +628,7 @@ document.querySelectorAll('.factor').forEach(b => b.addEventListener('click', ()
     }
   }, 30);
 }));
-$('map-fit').addEventListener('click', () => { if (!S) return; S.selected = null; applyHighlightState(); map.fit(); });
+$('map-fit').addEventListener('click', () => { if (!S) return; S.selected = null; S.range = null; renderRange(); applyHighlightState(); map.fit(); });
 $('map-expand').addEventListener('click', () => {
   const wrap = document.querySelector('.map-wrap');
   const tall = wrap.classList.toggle('tall');
@@ -754,15 +759,19 @@ function renderEditNote() {
 function renderLayer() {
   drawMapRoute();
   const deltas = deltasFor(S.layer);
+  const hill = S.splitMode === 'hill';
   profile.set({
     windows: S.windows, deltas, eleScale: eleScale(units), eleUnit: eleUnit(units), unitM: unitM(units), unitLabel: units,
-    bands: S.splitMode === 'hill' ? S.hills : null,
+    bands: hill ? S.hills : null,
+    // Hill-segment mode: one bar per segment, its average pace change (length-weighted over its stretches)
+    segments: hill ? S.hills.map(h => ({ d0: h.d0, d1: h.d1, delta: meanDelta(deltas, h.d0, h.d1) })) : null,
     pauses: pauseMarks()
   });
+  const per = hill ? 'hill segment' : '100 m stretch';
   const notes = {
     total: S.mode === 'evaluate'
-      ? 'Bars show how an even effort runs slower (red) or faster (blue) than your flat-equivalent pace on each 100 m stretch.'
-      : 'Bars show how each 100 m stretch of your plan differs from goal pace, with all included adjustments.',
+      ? `Bars show how an even effort runs slower (red) or faster (blue) than your flat-equivalent pace on each ${per}.`
+      : `Bars show how each ${per} of your plan differs from your effort pace, with all included adjustments.`,
     grade: `Bars show the effect of the grade alone. Descents steeper than ${Math.round(DOWNHILL_CAP_GRADE * 100)}% get no extra benefit.`,
     wind: (() => {
       const hw = S.windows.map(headwindComponent);
@@ -770,12 +779,88 @@ function renderLayer() {
       return `Bars show the effect of wind alone: ${Math.round(head * 100)}% of the course is into a headwind and ${Math.round(tail * 100)}% has a tailwind.`;
     })(),
     heat: 'Bars show the effect of temperature and humidity alone, stepping hour by hour from the start.',
-    effort: 'Bars show your flat-equivalent pace on each stretch against your overall flat equivalent: blue where you pushed harder than average, red where you eased off. Stops are left out.'
+    effort: `Bars show your flat-equivalent pace on each ${hill ? per : 'stretch'} against your overall flat equivalent: blue where you pushed harder than average, red where you eased off. Stops are left out.`
   };
   const excluded = S.layer in S.toggles && !S.toggles[S.layer] ? ` ${LAYER_NAMES[S.layer]} is currently excluded from your ${S.mode === 'evaluate' ? 'equivalent' : 'plan'}.` : '';
-  $('profile-note').textContent = `${LAYER_NAMES[S.layer]} · hover, tap or use ← → to explore`;
-  $('profile-sub').textContent = `${notes[S.layer]}${excluded}${S.splitMode === 'hill' ? ' Shaded bands mark the hill segments.' : ''}`;
+  $('profile-note').textContent = `${LAYER_NAMES[S.layer]} · ${isTouch() ? 'tap to explore · press and hold, then drag to select' : 'hover or use ← → to explore · drag to select'}`;
+  $('profile-sub').textContent = `${notes[S.layer]}${excluded}${hill ? ' Shaded bands mark the hill segments.' : ''}`;
   applyHighlightState();
+  renderRange();
+}
+
+// Length-weighted mean of per-window values over [d0, d1] (skipping NaN, e.g. stops)
+function meanDelta(values, d0, d1) {
+  let num = 0, den = 0;
+  S.windows.forEach((w, i) => {
+    const len = Math.min(w.d1, d1) - Math.max(w.d0, d0);
+    if (len > 0 && Number.isFinite(values[i])) { num += values[i] * len; den += len; }
+  });
+  return den > 0 ? num / den : NaN;
+}
+
+// ---------------------------------------------------------------- drag-selected stretch
+// range: { d0, d1 } or null. A selection replaces any selected split; done = released (zoom the map).
+function selectRange(range, done) {
+  if (!S) return;
+  S.range = range;
+  if (range) S.selected = null;
+  applyHighlightState();
+  renderRange();
+  if (range && done) map.zoomTo(range.d0, range.d1);
+}
+
+function eleAt(d) {
+  const w = S.windows[windowAt(d)];
+  const t = Math.max(0, Math.min(1, (d - w.d0) / w.length));
+  return w.ele0 + (w.ele1 - w.ele0) * t;
+}
+
+function renderRange() {
+  const el = $('range-panel');
+  if (!S?.range) { el.hidden = true; el.innerHTML = ''; return; }
+  const { d0, d1 } = S.range, len = d1 - d0, u = unitM(units);
+  const span = at => at(d1) - at(d0);
+  const runSpan = run => span(d => timeAt(S.windows, run.cum, d));
+  const pace = sec => formatPaceSec(sec / len * u, units);
+  const delta = sec => `<span class="d ${deltaClass(sec)}">${esc(formatDelta(sec / len * u))}</span>`;
+  // Elevation: through every window boundary inside the stretch
+  const eles = [d0, ...S.windows.filter(w => w.d1 > d0 && w.d1 < d1).map(w => w.d1), d1].map(eleAt);
+  let gain = 0, loss = 0;
+  eles.slice(1).forEach((e, i) => { const dz = e - eles[i]; if (dz > 0) gain += dz; else loss -= dz; });
+  const grade = (eles[eles.length - 1] - eles[0]) / len;
+  const es = eleScale(units), eu = eleUnit(units);
+  // Each factor alone over this stretch, as in the factor cards
+  const base = runSpan(S.result.runs.base);
+  const factor = f => {
+    const sec = runSpan(S.result.runs[f]) - base;
+    return `<span class="${S.toggles[f] ? deltaClass(sec) : ''}">${esc(formatDelta(sec))}</span>${S.toggles[f] ? '' : ' <span class="off">off</span>'}`;
+  };
+  const stat = (k, v) => `<div><dt>${esc(k)}</dt><dd>${v}</dd></div>`;
+  let main;
+  if (S.recorded) {
+    const yours = span(d => timeAt(S.windows, S.rec.cum, d));
+    const f = flatOver(d0, d1);
+    main = stat('Your time', esc(formatDuration(yours))) + stat(`Your pace`, esc(pace(yours)))
+      + stat('Flat equiv.', f.len > 0 ? esc(formatPaceSec(f.time / f.len * u, units)) : '—');
+  } else {
+    const plan = span(d => S.plan.timeAt(d)), eff = span(d => S.effort.timeAt(d));
+    main = stat(S.mode === 'evaluate' ? 'Even-effort time' : 'Plan time', esc(formatDuration(plan)))
+      + stat(T().paceWord, `${esc(pace(plan))}${delta(plan - eff)}`)
+      + stat('Effort pace', esc(pace(eff)));
+  }
+  el.innerHTML = `<div class="rp-head">
+      <span class="rp-title">Selected stretch<span class="kind">${esc((d0 / u).toFixed(2))}–${esc((d1 / u).toFixed(2))} ${units} · ${esc((len / u).toFixed(2))} ${units}</span></span>
+      <button type="button" class="rp-close" aria-label="Clear the selected stretch" title="Clear selection"><svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg></button>
+    </div>
+    <dl class="rp-grid">
+      ${main}
+      ${stat('Elevation', `↑ ${Math.round(gain * es)} ${eu} ↓ ${Math.round(loss * es)} ${eu}`)}
+      ${stat('Average grade', `${grade >= 0 ? '+' : '−'}${Math.abs(grade * 100).toFixed(1)}%`)}
+      ${stat('Grade effect', factor('grade'))}
+      ${stat('Wind effect', factor('wind'))}
+      ${stat('Heat effect', factor('heat'))}
+    </dl>`;
+  el.hidden = false;
 }
 
 function drawMapRoute() {
@@ -907,6 +992,7 @@ function hoverSplit(i, ev, source) {
 
 function selectSplit(i) {
   S.selected = S.selected === i ? null : i;
+  if (S.range) { S.range = null; renderRange(); }
   applyHighlightState();
   if (S.selected !== null) {
     const r = S.rows.find(x => x.index === i);
@@ -923,7 +1009,8 @@ function applyHighlightState() {
   if (!S || !map) return;
   const i = S.hovered ?? S.selected;
   const r = i === null || i === undefined ? null : S.rows?.find(x => x.index === i);
-  if (r) { map.highlight(r.d0, r.d1); profile.setRange(r.d0, r.d1); }
+  const sel = r ?? S.range;
+  if (sel) { map.highlight(sel.d0, sel.d1); profile.setRange(sel.d0, sel.d1); }
   else { map.clearHighlight(); profile.clearRange(); }
   $('split-table').querySelectorAll('tr[data-i]').forEach(tr => tr.classList.toggle('active', Number(tr.dataset.i) === i));
   if (splitChart.data && splitChart.data.active !== (i ?? null)) { splitChart.data.active = i ?? null; splitChart.render(); }

@@ -2,6 +2,10 @@
 // Rendered at the element's real pixel width (so text stays legible), re-rendered on resize.
 import { esc, observeWidth } from './util.js';
 
+// Touch: press and hold this long (without moving) before a drag selects instead of scrubbing
+const HOLD_MS = 400;
+const MIN_SELECT_M = 20;
+
 const niceStep = span => {
   const raw = span / 4, p = 10 ** Math.floor(Math.log10(raw || 1));
   return [1, 2, 2.5, 5, 10].map(m => m * p).find(s => s >= raw);
@@ -9,16 +13,23 @@ const niceStep = span => {
 
 export class ProfileChart {
   // onHover(distanceM, event) / onLeave()
-  constructor(el, { onHover, onLeave }) {
+  // onSelect(d0, d1, done): a stretch dragged out (live while dragging, done = true on release)
+  // onSelectClear(): a click or tap without a drag, or Escape
+  constructor(el, { onHover, onLeave, onSelect, onSelectClear }) {
     this.el = el;
-    this.onHover = onHover;
-    this.onLeave = onLeave;
+    Object.assign(this, { onHover, onLeave, onSelect, onSelectClear });
     this.data = null;
     this.focusD = null;
     this.range = null;
+    this.drag = null;
     observeWidth(el, w => { this.width = w; this.render(); });
-    el.addEventListener('pointermove', e => this.pointer(e));
-    el.addEventListener('pointerdown', e => this.pointer(e));
+    // Mouse: press and drag to select. Touch: press and hold, then drag (a plain drag scrubs the
+    // tooltip and a vertical swipe scrolls the page).
+    el.addEventListener('pointerdown', e => this.down(e));
+    el.addEventListener('pointermove', e => this.move(e));
+    el.addEventListener('pointerup', e => this.up(e));
+    el.addEventListener('pointercancel', () => this.endDrag());
+    el.addEventListener('touchmove', e => { if (this.drag?.active) e.preventDefault(); }, { passive: false });
     // Touch: lifting the finger fires pointerleave right after the tap, so keep the tooltip until the
     // user taps elsewhere (handled in main.js); mouse: hide when the pointer leaves
     el.addEventListener('pointerleave', e => { if (e.pointerType !== 'touch') this.onLeave?.(); });
@@ -27,7 +38,8 @@ export class ProfileChart {
   }
 
   // data: { windows, deltas (s per unit), eleScale, eleUnit, unitM, unitLabel, bands: [{d0,d1}] | null,
-  //         pauses: [{ d, label }] (recorded runs: watch pauses, drawn as dashed lines) }
+  //         pauses: [{ d, label }] (recorded runs: watch pauses, drawn as dashed lines),
+  //         segments: [{ d0, d1, delta }] | null (hill-segment mode: one bar per segment instead of per 100 m) }
   set(data) {
     this.data = data;
     // Measure directly too, so the first render doesn't depend on a ResizeObserver callback
@@ -58,14 +70,17 @@ export class ProfileChart {
     const line = dists.map((m, i) => `${i ? 'L' : 'M'}${x(m).toFixed(1)},${y(elev[i]).toFixed(1)}`).join('');
     const area = `${line}L${x(total).toFixed(1)},${top + eleH}L${x(0)},${top + eleH}Z`;
 
-    const maxAbs = Math.max(5, ...d.deltas.map(Math.abs).filter(Number.isFinite));
+    // Bars: one per 100 m stretch, or one per hill segment
+    const barItems = d.segments ?? ws.map((w, i) => ({ d0: w.d0, d1: w.d1, delta: d.deltas[i] }));
+    const gapPx = d.segments ? 1.5 : 0.4;
+    const maxAbs = Math.max(5, ...barItems.map(b => Math.abs(b.delta)).filter(Number.isFinite));
     const base = top + eleH + gap + barH / 2;
     const by = v => base - (barH / 2) * v / maxAbs;
-    const bars = ws.map((w, i) => {
-      const v = d.deltas[i];
+    const bars = barItems.map(b => {
+      const v = b.delta;
       if (!Number.isFinite(v) || Math.abs(v) < 0.05) return '';
       const y0 = Math.min(by(v), base), h = Math.max(0.5, Math.abs(by(v) - base));
-      return `<rect x="${x(w.d0).toFixed(1)}" y="${y0.toFixed(1)}" width="${Math.max(0.8, x(w.d1) - x(w.d0) - 0.4).toFixed(1)}" height="${h.toFixed(1)}" class="${v > 0 ? 'bar-slow' : 'bar-fast'}"/>`;
+      return `<rect x="${(x(b.d0) + gapPx / 2).toFixed(1)}" y="${y0.toFixed(1)}" width="${Math.max(0.8, x(b.d1) - x(b.d0) - gapPx).toFixed(1)}" height="${h.toFixed(1)}" class="${v > 0 ? 'bar-slow' : 'bar-fast'}"/>`;
     }).join('');
 
     const bands = (d.bands ?? []).map((b, i) => i % 2
@@ -96,7 +111,7 @@ export class ProfileChart {
       <text x="${padL - 8}" y="${(by(maxAbs) + 4).toFixed(1)}" class="tick" text-anchor="end">+${Math.round(maxAbs)}</text>
       <text x="${padL - 8}" y="${(base + 4).toFixed(1)}" class="tick" text-anchor="end">0</text>
       <text x="${padL - 8}" y="${(by(-maxAbs) + 4).toFixed(1)}" class="tick" text-anchor="end">−${Math.round(maxAbs)}</text>
-      <text x="${padL}" y="${top + eleH + gap - 8}" class="tick">Pace change, s/${esc(d.unitLabel)} · red slower, blue faster</text>
+      <text x="${padL}" y="${top + eleH + gap - 8}" class="tick">Pace change, s/${esc(d.unitLabel)}${d.segments ? ' per hill segment' : ''} · red slower, blue faster</text>
       ${xt.map(v => `<text x="${x(v * d.unitM).toFixed(1)}" y="${H - 6}" class="tick" text-anchor="${v === 0 ? 'start' : 'middle'}">${+v.toFixed(1)}</text>`).join('')}
       <text x="${W - padR}" y="${H - 6}" class="tick" text-anchor="end">${esc(d.unitLabel)}</text>
       <g id="pf-hover" visibility="hidden">
@@ -119,6 +134,70 @@ export class ProfileChart {
     this.onHover?.(this.distanceAtClientX(e.clientX), e);
   }
 
+  down(e) {
+    if (!this.geom || (e.pointerType === 'mouse' && e.button !== 0)) return;
+    this.pointer(e);
+    const touch = e.pointerType !== 'mouse';
+    const g = this.drag = { id: e.pointerId, start: this.distanceAtClientX(e.clientX), x: e.clientX, y: e.clientY, touch, moved: false, active: false };
+    if (touch) {
+      g.timer = setTimeout(() => {
+        if (this.drag !== g || g.moved) return;
+        g.active = true;
+        navigator.vibrate?.(10);
+        this.onLeave?.();
+        this.dragTo(g.start, false);
+      }, HOLD_MS);
+    }
+  }
+
+  move(e) {
+    const g = this.drag;
+    if (g && g.id === e.pointerId) {
+      if (Math.abs(e.clientX - g.x) > (g.touch ? 10 : 5) || Math.abs(e.clientY - g.y) > 10) g.moved = true;
+      if (!g.touch && g.moved && !g.active) {
+        g.active = true;
+        this.el.setPointerCapture?.(e.pointerId);
+        this.onLeave?.();
+      }
+      if (g.active) {
+        const dd = this.distanceAtClientX(e.clientX);
+        this.setFocus(dd);
+        this.dragTo(dd, false);
+        return;
+      }
+    }
+    this.pointer(e);
+  }
+
+  up(e) {
+    const g = this.drag;
+    if (!g || g.id !== e.pointerId) return;
+    if (g.active) this.dragTo(this.distanceAtClientX(e.clientX), true);
+    else if (!g.moved) this.onSelectClear?.();
+    this.endDrag();
+  }
+
+  endDrag() {
+    const g = this.drag;
+    if (!g) return;
+    clearTimeout(g.timer);
+    if (g.active && this.range) this.onSelect?.(...this.range, true);
+    if (this.el.hasPointerCapture?.(g.id)) this.el.releasePointerCapture(g.id);
+    this.drag = null;
+  }
+
+  dragTo(d, done) {
+    const g = this.drag;
+    const a = Math.min(g.start, d), b = Math.max(g.start, d);
+    if (b - a < MIN_SELECT_M) {
+      if (done) { g.active = false; this.onSelectClear?.(); }
+      return;
+    }
+    this.setRange(a, b);
+    this.onSelect?.(a, b, done);
+    if (done) g.active = false;
+  }
+
   key(e) {
     if (!this.geom) return;
     const step = this.geom.total / 100 * (e.shiftKey ? 5 : 1);
@@ -127,7 +206,7 @@ export class ProfileChart {
     else if (e.key === 'ArrowLeft') d = Math.max(0, d - step);
     else if (e.key === 'Home') d = 0;
     else if (e.key === 'End') d = this.geom.total;
-    else if (e.key === 'Escape') { this.onLeave?.(); return; }
+    else if (e.key === 'Escape') { this.onLeave?.(); this.onSelectClear?.(); return; }
     else return;
     e.preventDefault();
     const svg = this.el.querySelector('svg').getBoundingClientRect();

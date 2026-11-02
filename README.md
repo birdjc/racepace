@@ -17,6 +17,10 @@ Upload a GPX course and a start date and time, then choose a mode:
   6:00/mi) and that split's adjusted time is recalculated; the totals update and the other splits
   stay as they are.
 
+- **Explore the course:** hover the map or elevation profile for any 100 m stretch, or drag across
+  the profile (on phones: press and hold, then drag) to see the pace, elevation and grade/wind/heat
+  breakdown for any stretch.
+
 Both use John J. Davis's Running Writings models.
 
 **Live: https://birdjc.github.io/racepace/**
