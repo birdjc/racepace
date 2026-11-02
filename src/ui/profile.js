@@ -156,7 +156,7 @@ export class ProfileChart {
       if (Math.abs(e.clientX - g.x) > (g.touch ? 10 : 5) || Math.abs(e.clientY - g.y) > 10) g.moved = true;
       if (!g.touch && g.moved && !g.active) {
         g.active = true;
-        this.el.setPointerCapture?.(e.pointerId);
+        try { this.el.setPointerCapture(e.pointerId); } catch { /* pointer already gone: drag still works without capture */ }
         this.onLeave?.();
       }
       if (g.active) {
