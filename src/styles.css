@@ -293,6 +293,14 @@ table.splits .d { font-size: 0.8rem; margin-left: 6px; font-weight: 600; }
 .split-edit.edited .split-input { border: 1px solid var(--accent); background: color-mix(in srgb, var(--accent) 12%, transparent); font-weight: 700; }
 .split-reset { display: inline-grid; place-items: center; width: 22px; height: 22px; border: 0; border-radius: 6px; background: transparent; color: var(--muted); cursor: pointer; padding: 0; }
 .split-reset:hover { color: var(--ink); background: var(--surface-2); }
+/* Negative/positive split slider */
+.tilt { margin: 4px 0 12px; padding: 12px 14px; border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--surface-2); }
+.tilt-head { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: baseline; gap: 4px 12px; }
+.tilt-head .note { margin: 0; }
+.tilt input[type=range] { width: 100%; margin: 10px 0 2px; accent-color: var(--accent); cursor: pointer; }
+.tilt-labels { display: grid; grid-template-columns: 1fr auto 1fr; font-size: 0.78rem; color: var(--muted); }
+.tilt-labels span:last-child { text-align: right; }
+.tilt-labels .link-btn { font-size: 0.78rem; }
 .edit-bar { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 6px 12px; margin: 0 0 10px; padding: 8px 12px; border-radius: 10px; background: color-mix(in srgb, var(--accent) 10%, transparent); font-size: 0.88rem; }
 .edit-note { margin: 10px 0 0; }
 table.splits .kind { display: block; font-size: 0.75rem; color: var(--muted); }

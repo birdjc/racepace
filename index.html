@@ -228,6 +228,14 @@
           </div>
         </div>
         <p class="note" id="splits-sub"></p>
+        <div class="tilt" id="tilt" hidden>
+          <div class="tilt-head">
+            <label for="tilt-range" class="kicker">Split strategy</label>
+            <span class="note" id="tilt-out" aria-live="polite"></span>
+          </div>
+          <input type="range" id="tilt-range" min="-5" max="5" step="0.25" value="0" aria-describedby="tilt-out" />
+          <div class="tilt-labels"><span>Negative split</span><button type="button" class="link-btn" id="tilt-even">Even</button><span>Positive split</span></div>
+        </div>
         <div id="split-chart" class="split-chart"></div>
         <div class="edit-bar" id="edit-bar" hidden>
           <span id="edit-bar-text"></span>

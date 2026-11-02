@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { hampel, smoothElevation } from '../src/lib/profile.js';
 import { buildWindows, hillSegments } from '../src/lib/segments.js';
-import { attachWeather, computeAll, runModel, pacingOpportunity } from '../src/lib/adjust.js';
+import { attachWeather, computeAll, runModel, pacingOpportunity, tiltedSpeeds } from '../src/lib/adjust.js';
 import { makeSplits, splitBoundaries, timeAt } from '../src/lib/splits.js';
 
 // Straight course heading due east along the equator, 10 m spacing
@@ -190,5 +190,32 @@ describe('steep grade notes', () => {
     expect(notes).toHaveLength(2);
     expect(notes[0]).toMatch(/^0\.5 km/);
     expect(steepGradeNotes([{ grade: 0.02, length: 100 }])).toHaveLength(0);
+  });
+});
+
+describe('negative/positive split', () => {
+  const pts = course(1001, d => 10 * Math.sin(d / 700));
+  const windows = attachWeather(buildWindows(pts, pts.map(p => p.ele)), 3.5, hours({ tempC: 12, rh: 50, windMs: 2, windFromDeg: 90 }), '2026-10-01T07:00');
+  const D = windows[windows.length - 1].d1, none = { grade: false, wind: false, heat: false };
+  const halves = run => { const h = timeAt(windows, run.cum, D / 2); return [h, run.total - h]; };
+  it('keeps the flat goal time and moves the split difference by the chosen share', () => {
+    for (const split of [-0.03, 0.02]) {
+      const v = tiltedSpeeds(windows, 3.5, split);
+      const run = runModel(windows, v, none, { smoothM: 0 });
+      expect(run.total).toBeCloseTo(D / 3.5, 6);
+      const [a, b] = halves(run);
+      expect((b - a) / run.total).toBeCloseTo(split, 3);
+    }
+  });
+  it('a zero tilt is the same as an even effort', () => {
+    const on = { grade: true, wind: true, heat: true };
+    const even = runModel(windows, 3.5, on), flat = runModel(windows, tiltedSpeeds(windows, 3.5, 0), on);
+    expect(flat.total).toBeCloseTo(even.total, 6);
+  });
+  it('a negative split runs the second half faster on the course too', () => {
+    const on = { grade: true, wind: true, heat: true };
+    const [a, b] = halves(computeAll(windows, tiltedSpeeds(windows, 3.5, -0.03), on).runs.total);
+    const [a0, b0] = halves(computeAll(windows, 3.5, on).runs.total);
+    expect(b - a).toBeLessThan(b0 - a0 - 0.025 * D / 3.5);
   });
 });

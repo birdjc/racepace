@@ -88,15 +88,28 @@ export function flatEquivalentSpeed(w, actualSpeed, on) {
   return Number.isFinite(v) && v > 0 ? v : NaN;
 }
 
-// One pass over all windows. on = {grade, wind, heat}
+// One pass over all windows. on = {grade, wind, heat}. baseSpeed: one flat effort speed for the whole
+// course, or one per window (a negative/positive split, see tiltedSpeeds).
 export function runModel(windows, baseSpeed, on, { smoothM = PACE_SMOOTH_M } = {}) {
   const warn = new Set();
-  const rawSpeeds = windows.map(w => adjustOne(w, baseSpeed, on, warn));
+  const base = Array.isArray(baseSpeed) ? i => baseSpeed[i] : () => baseSpeed;
+  const rawSpeeds = windows.map((w, i) => adjustOne(w, base(i), on, warn));
   const speeds = smoothPacePlan(windows, rawSpeeds, smoothM);
   const times = windows.map((w, i) => w.length / speeds[i]);
   const cum = [0];
   times.forEach(t => cum.push(cum[cum.length - 1] + t));
   return { on, rawSpeeds, speeds, times, cum, total: cum[cum.length - 1], warnings: [...warn] };
+}
+
+// Negative/positive split: the flat effort pace changes linearly along the course. split is the second
+// half's effort time minus the first half's, as a fraction of the total (−0.02 = second half faster by
+// 2% of the finish time). Pace at the start and finish is goal pace × (1 ∓ 2·split); the average stays
+// exactly goal pace (rescaled per window), so the flat goal time is unchanged. Returns one speed per window.
+export function tiltedSpeeds(windows, v0, split) {
+  const D = windows[windows.length - 1].d1;
+  const pace = windows.map(w => (1 + 4 * split * ((w.d0 + w.d1) / 2 / D - 0.5)) / v0);
+  const t = windows.reduce((a, w, i) => a + w.length * pace[i], 0);
+  return pace.map(p => 1 / (p * (D / v0) / t));
 }
 
 // Everything the UI needs: base, the combined run (per toggles) and each factor alone

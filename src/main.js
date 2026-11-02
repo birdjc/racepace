@@ -5,7 +5,7 @@ import { getRaceWeather, getTimezone, localToMs } from './lib/weather.js';
 import { analyseRecording, utcToLocal, STOP_SPEED } from './lib/recorded.js';
 import { smoothElevation } from './lib/profile.js';
 import { buildWindows, hillSegments, WINDOW_M } from './lib/segments.js';
-import { attachWeather, computeAll, solveFlatSpeed, pacingOpportunity, headwindComponent, WIND_ALPHA, RUNNER_KG, DOWNHILL_CAP_GRADE, PACE_SMOOTH_M } from './lib/adjust.js';
+import { attachWeather, computeAll, solveFlatSpeed, tiltedSpeeds, pacingOpportunity, headwindComponent, WIND_ALPHA, RUNNER_KG, DOWNHILL_CAP_GRADE, PACE_SMOOTH_M } from './lib/adjust.js';
 import { makeSplits, splitBoundaries, splitPace, splitPaceDelta, timeAt, runTimeAt } from './lib/splits.js';
 import { addEdit, findEdit, effortRun, adjustedRun } from './lib/edits.js';
 import { parseDuration, parseSplit } from './lib/pace.js';
@@ -387,7 +387,9 @@ function recompute() {
   const dist = S.course.distance;
   S.v0 = S.mode === 'evaluate' ? solveFlatSpeed(S.windows, S.enteredSec, S.toggles) : dist / S.enteredSec;
   S.goalSec = dist / S.v0;
-  S.result = computeAll(S.windows, S.v0, S.toggles);
+  // Plan mode: the split strategy tilts the flat effort along the course (0 = even)
+  const base = S.mode === 'plan' && S.tilt ? tiltedSpeeds(S.windows, S.v0, S.tilt / 100) : S.v0;
+  S.result = computeAll(S.windows, base, S.toggles);
   S.rec = S.recorded ? analyseRecording(S.windows, S.recPoints, S.toggles) : null;
   applyPlanEdits();
 }
@@ -455,7 +457,7 @@ $('input-form').addEventListener('submit', async e => {
     windows.forEach(w => { const dz = w.ele1 - w.ele0; if (dz > 0) gain += dz; else loss -= dz; });
     S = {
       mode: runMode, recorded, pauses, removePauses, recPoints, course, prof, windows, hills, weather, place, startLocal, gain, loss,
-      enteredSec: goalSec, edits: [],
+      enteredSec: goalSec, edits: [], tilt: 0,
       name: $('race-name-input').value.trim() || course.name || input.fileName.replace(/\.gpx$/i, ''),
       toggles: { grade: true, wind: true, heat: true },
       splitMode: units, layer: recorded ? 'effort' : 'total', selected: null, hovered: null, range: null
@@ -562,7 +564,7 @@ function editSplit(i, paceSec) {
   const hadFocus = document.activeElement?.closest?.('#split-table');
   // Typing the base pace back in is the same as resetting
   const v = paceSec === null ? null : unitM(paceUnit()) / paceSec;
-  const same = v !== null && Math.abs(paceSec - unitM(paceUnit()) / S.v0) < 0.5;
+  const same = v !== null && Math.abs(paceSec - r.modelEffortSec) < 0.5;
   S.edits = addEdit(S.edits, r.d0, r.d1, same ? null : v);
   refreshEdits();
   if (hadFocus && (paceSec === null || same)) focusSplitInput(i);
@@ -663,7 +665,8 @@ function deltasFor(layer) {
   // Total: the plan against its own effort (edited effort splits included); single factors: vs the base effort
   if (layer === 'total') return S.windows.map((_, i) => u * (1 / S.plan.speeds[i] - 1 / S.effort.speeds[i]));
   const run = S.result.runs[layer];
-  return S.windows.map((_, i) => u * (1 / run.speeds[i] - 1 / S.v0));
+  const base = S.result.runs.base;
+  return S.windows.map((_, i) => u * (1 / run.speeds[i] - 1 / base.speeds[i]));
 }
 
 function renderHeader() {
@@ -907,8 +910,9 @@ function buildSplitRows() {
   const actual = S.recorded ? recordedRun() : S.plan;
   // Plan/evaluate: ± against each split's effort (so it shows the course effect)
   const ref = S.recorded ? result.runs.total : S.effort;
-  const basePace = formatDuration(u / S.v0);
   const rows = makeSplits(windows, actual, ref, splitBoundaries(splitMode, windows, hills));
+  // Each split's unedited effort (even, or tilted by the split strategy), for reset and the edit hint
+  const baseRows = makeSplits(windows, result.runs.base, result.runs.base, splitBoundaries(splitMode, windows, hills));
   const flatPace = (d0, d1) => { const f = flatOver(d0, d1); return f.len > 0 ? formatDuration(f.time / f.len * u) : '—'; };
   const out = [];
   const half = course.distance / 2;
@@ -927,7 +931,8 @@ function buildSplitRows() {
     const pd = splitPaceDelta(r, pu);
     const edited = !S.recorded && !!findEdit(S.edits, r.d0, r.d1);
     out.push({
-      index: i, label, sub, kind, d0: r.d0, d1: r.d1, edited, modelEffort: basePace,
+      index: i, label, sub, kind, d0: r.d0, d1: r.d1, edited,
+      modelEffort: formatDuration(baseRows[i].time / r.length * u), modelEffortSec: baseRows[i].time / r.length * u,
       effort: formatDuration(r.baseTime / r.length * u),
       time: formatDuration(r.time), pace: formatDuration(splitPace(r, pu)), paceDelta: formatDelta(pd), paceDeltaSec: pd,
       cum: formatDuration(r.cum, { forceHours: true }), cumDelta: formatDelta(r.cumDelta), cumDeltaSec: r.cumDelta,
@@ -945,7 +950,35 @@ function buildSplitRows() {
   return out;
 }
 
+// ---------- split strategy (plan mode)
+let tiltFrame = 0;
+function setTilt(value) {
+  if (!S || S.mode !== 'plan') return;
+  S.tilt = Math.abs(value) < 1e-9 ? 0 : value;
+  $('tilt-range').value = String(S.tilt);
+  cancelAnimationFrame(tiltFrame);
+  // Recomputing takes a few ms; coalesce slider input to one update per frame
+  tiltFrame = requestAnimationFrame(() => { recompute(); renderResults(); });
+}
+$('tilt-range').addEventListener('input', e => setTilt(Number(e.target.value)));
+$('tilt-even').addEventListener('click', () => setTilt(0));
+
+function renderTilt() {
+  const box = $('tilt');
+  box.hidden = S.mode !== 'plan';
+  if (box.hidden) return;
+  $('tilt-range').value = String(S.tilt);
+  const half = S.course.distance / 2;
+  const halves = run => { const h = run.timeAt(half); return [h, run.total - h]; };
+  const [e1, e2] = halves(S.effort), [c1, c2] = halves(S.plan);
+  const f = sec => formatDuration(sec, { forceHours: true });
+  const kind = Math.abs(e2 - e1) < 0.5 ? 'even' : `${formatDelta(e2 - e1)}, ${e2 < e1 ? 'negative' : 'positive'} split`;
+  $('tilt-out').textContent = `Effort halves ${f(e1)} / ${f(e2)} (${kind}) · on this course ${f(c1)} / ${f(c2)} (${formatDelta(c2 - c1)})`;
+  $('tilt-range').setAttribute('aria-valuetext', S.tilt ? `${Math.abs(S.tilt)}% ${S.tilt < 0 ? 'negative' : 'positive'} split` : 'Even split');
+}
+
 function renderSplits() {
+  renderTilt();
   S.rows = buildSplitRows();
   const splitRows = S.rows.filter(r => !r.summary);
   // Effort layer: seconds each split's flat-equivalent time differs from your overall flat equivalent
@@ -1035,7 +1068,7 @@ function focusAt(d, ev) {
   const effortV = S.recorded ? S.v0 : S.effort.speeds[k];
   const planDelta = u * (1 / plan.speeds[k] - 1 / effortV);
   // Per-factor effects for this stretch alone (before the ±200 m plan smoothing)
-  const raw = run => u * (1 / S.result.runs[run].rawSpeeds[k] - 1 / S.v0);
+  const raw = run => u * (1 / S.result.runs[run].rawSpeeds[k] - 1 / S.result.runs.base.rawSpeeds[k]);
   const ang = ((w.windAngle + 180) % 360) - 180;
   const windDesc = w.wx.windMs < 0.5 ? 'calm' : Math.abs(ang) <= 45 ? 'headwind' : Math.abs(ang) >= 135 ? 'tailwind' : 'crosswind';
   const windSpd = units === 'mi' ? `${(w.wx.windMs * 2.23694).toFixed(0)} mph` : `${(w.wx.windMs * 3.6).toFixed(0)} km/h`;
@@ -1108,6 +1141,7 @@ function renderMethod() {
     ${S.recorded ? `<p><b>Recorded run.</b> Your splits, the elapsed times and the "Your effort" view come from the file's timestamps, with GPS noise smoothed over ±${PACE_SMOOTH_M} m. Stretches slower than ${formatPaceSec(unitM(units) / STOP_SPEED, units)} count as stops: they stay in your elapsed time but are left out of the effort analysis. The headline equivalent still assumes an even effort, so it compares fairly with plan mode; the Flat equiv. column comes from how you actually paced it, so its average can differ from the headline by a few seconds per mile.</p>` : ''}
     ${S.mode === 'evaluate' ? `<p><b>Evaluate mode.</b> The app finds the flat, ideal-conditions time whose adjusted time on this course matches yours, assuming an even effort. The splits show how that even effort would have split on this course; compare them with your watch splits.</p>` : ''}
     ${S.edits.length ? `<p><b>Edited effort splits.</b> Each edited split's 100 m stretches are run through the models again at the effort pace you entered. Its adjusted time changes by the ratio of the new to the old adjusted speed, which keeps the ±${PACE_SMOOTH_M} m smoothing inside the split and leaves every other split exactly as it was. The hourly weather stays where the original ${S.mode === 'evaluate' ? 'evaluation' : 'plan'} placed it.</p>` : ''}
+    ${S.mode === 'plan' && S.tilt ? `<p><b>Split strategy.</b> The flat effort pace changes steadily from start to finish (${S.tilt < 0 ? 'faster' : 'slower'} at the end), averaging exactly your goal pace, so the goal time is unchanged. The second half's effort is ${Math.abs(S.tilt)}% of the goal time ${S.tilt < 0 ? 'faster' : 'slower'} than the first. The hourly weather is still placed at your average goal pace.</p>` : ''}
     <p><b>Adjustments</b> are applied in the order grade → wind → heat, each keeping the effort of the flat-ground pace in calm, cool air.
       Grade uses Minetti (2002) and the Black et al. (2018) running-cost data, with descents steeper than ${Math.round(DOWNHILL_CAP_GRADE * 100)}% given no extra benefit.
       Wind uses an aerodynamic drag model, with wind measured at 10 m and scaled to chest height (α = ${WIND_ALPHA}), for a ${RUNNER_KG} kg runner.
